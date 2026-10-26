@@ -9,7 +9,7 @@ import os
 import warnings
 from tqdm import trange
 from lunar_lander import ENV_NAME, OBS_SCALE
-from rollout import RolloutState
+from rollout import RolloutBatch, RolloutState
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
@@ -216,7 +216,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
             break
     
     state.observations = states
-    return (obs, raw_act, rew, terminations, truncations, next_obs, ep_returns) if collect else ep_returns
+    return (RolloutBatch(obs, raw_act, rew, terminations, truncations, next_obs), ep_returns) if collect else ep_returns
 
 class TrainingContext:
     def __init__(self):
@@ -248,14 +248,14 @@ class TrainingContext:
 
 def train_one_epoch(epoch, ctx):
     t0 = time.perf_counter()
-    obs, raw_act, rew, terminated, truncated, next_obs, ep_rets = rollout(
+    batch, ep_rets = rollout(
         ctx.env, ctx.ac, num_steps=steps_per_epoch, state=ctx.rollout_state
     )
     t1 = time.perf_counter()
     ctx.rollout_times.append(t1 - t0)
     
     t0 = time.perf_counter()
-    ctx.ppo.update(obs, raw_act, rew, terminated, truncated, next_obs)
+    ctx.ppo.update(*batch)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
     

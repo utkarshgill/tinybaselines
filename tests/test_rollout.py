@@ -76,7 +76,7 @@ class RolloutTest(unittest.TestCase):
                 with patch.object(trainer, 'steps_per_epoch', 8):
                     trainer.train_one_epoch(1, ctx)
                 env.reset.assert_called_once()
-                np.testing.assert_array_equal(first[0][:, 0, 0], [0, 1])
+                np.testing.assert_array_equal(first[0].observations[:, 0, 0], [0, 1])
                 np.testing.assert_array_equal(ctx.ppo.update.call_args.args[0][:, 0, 0], [2, 0])
                 np.testing.assert_array_equal(ctx.all_episode_returns, np.full(4, 3))
                 np.testing.assert_array_equal(state.observations, np.ones((4, 8)))
@@ -93,12 +93,12 @@ class RolloutTest(unittest.TestCase):
                               step=lambda actions: (states, np.ones(4), terminated, truncated, {'final_obs': final_obs}))
         for trainer in (lander, reference_lander):
             with self.subTest(trainer=trainer.__name__):
-                result = trainer.rollout(env, policy, num_steps=4)
-                np.testing.assert_array_equal(result[3][0], terminated)
-                np.testing.assert_array_equal(result[4][0], truncated)
-                np.testing.assert_array_equal(result[5][0, :3], final_obs[:3])
-                np.testing.assert_array_equal(result[5][0, 3], states[3])
-                self.assertEqual(len(result[-1]), 3)
+                batch, episodes = trainer.rollout(env, policy, num_steps=4)
+                np.testing.assert_array_equal(batch.terminated[0], terminated)
+                np.testing.assert_array_equal(batch.truncated[0], truncated)
+                np.testing.assert_array_equal(batch.next_observations[0, :3], final_obs[:3])
+                np.testing.assert_array_equal(batch.next_observations[0, 3], states[3])
+                self.assertEqual(len(episodes), 3)
 
     def test_each_step_is_a_transition(self):
         make = lander.gym.make
@@ -109,9 +109,9 @@ class RolloutTest(unittest.TestCase):
                 with patch.object(trainer.gym, 'make', side_effect=lambda *a, **kw: make(*a, max_episode_steps=1, **kw)):
                     env = trainer.make_env(4, asynchronous=False)
                 try:
-                    _, _, _, terminated, truncated, _, episodes = trainer.rollout(env, policy, num_steps=8)
-                    np.testing.assert_array_equal(terminated, np.zeros((2, 4), bool))
-                    np.testing.assert_array_equal(truncated, np.ones((2, 4), bool))
+                    batch, episodes = trainer.rollout(env, policy, num_steps=8)
+                    np.testing.assert_array_equal(batch.terminated, np.zeros((2, 4), bool))
+                    np.testing.assert_array_equal(batch.truncated, np.ones((2, 4), bool))
                     self.assertEqual(len(episodes), 8)
                 finally:
                     env.close()
@@ -128,11 +128,11 @@ class RolloutTest(unittest.TestCase):
                 env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}), step=step)
                 actions = np.zeros((4, 2), dtype=np.float32)
                 policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
-                obs, _, _, _, _, next_obs, _ = trainer.rollout(env, policy, num_steps=8)
-                np.testing.assert_array_equal(obs[:, 0, 0], [0, 1])
-                np.testing.assert_array_equal(next_obs[:, 0, 0], [1, 2])
+                batch, _ = trainer.rollout(env, policy, num_steps=8)
+                np.testing.assert_array_equal(batch.observations[:, 0, 0], [0, 1])
+                np.testing.assert_array_equal(batch.next_observations[:, 0, 0], [1, 2])
                 states[:] = 99
-                np.testing.assert_array_equal(next_obs[:, 0, 0], [1, 2])
+                np.testing.assert_array_equal(batch.next_observations[:, 0, 0], [1, 2])
 
     def test_bootstrap_values(self):
         cases = {
