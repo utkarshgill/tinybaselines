@@ -7,7 +7,7 @@ LunarLander needs Python 3.11 and clang.
 ```sh
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r examples/lunar_lander/requirements.txt
+pip install -e . -r examples/lunar_lander/requirements.txt
 ```
 
 Train, save, and load.

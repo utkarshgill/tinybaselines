@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 
@@ -50,10 +51,11 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(episodes, [])
 
     def test_import_without_example_dependencies(self):
-        subprocess.run([sys.executable, '-c',
-                        'import sys; import tinybaselines; '
-                        'assert not {"examples", "gymnasium", "matplotlib", "torch", "tqdm"}.intersection(sys.modules)'],
-                       check=True)
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([sys.executable, '-I', '-c',
+                            'import sys; import tinybaselines; '
+                            'assert not {"examples", "gymnasium", "matplotlib", "torch", "tqdm"}.intersection(sys.modules)'],
+                           cwd=directory, check=True)
 
     def test_policy_and_ppo_use_batch_dimensions(self):
         policy = GaussianActorCritic(3, 1, 4, 1, 1)
