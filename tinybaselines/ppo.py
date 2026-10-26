@@ -35,6 +35,19 @@ class PPO:
         self.vf_coef, self.entropy_coef = vf_coef, entropy_coef
         self._train_step = TinyJit(self._train_step)
 
+    @property
+    def config(self):
+        return dict(pi_lr=self.pi_optimizer.lr.item(), vf_lr=self.vf_optimizer.lr.item(),
+                    gamma=self.gamma, lamda=self.lamda, K_epochs=self.K_epochs, eps_clip=self.eps_clip,
+                    batch_size=self.batch_size, vf_coef=self.vf_coef, entropy_coef=self.entropy_coef)
+
+    def state_dict(self):
+        state = dict(policy=self.actor_critic.state_dict())
+        for name in ('pi_optimizer', 'vf_optimizer'):
+            optimizer = getattr(self, name)
+            state[name] = {key: getattr(optimizer, key) for key in ('lr', 'b1_t', 'b2_t', 'm', 'v')}
+        return nn.state.get_state_dict(state)
+
     def compute_advantages(self, rewards, state_values, terminated, truncated, next_values):
         T, N = rewards.shape
         advantages = np.zeros_like(rewards, dtype=np.float32)

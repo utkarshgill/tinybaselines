@@ -6,9 +6,30 @@ import numpy as np
 import torch
 
 from examples.lunar_lander import train as lander, reference as reference_lander
+from tinybaselines import GaussianActorCritic, PPO
 
 
 class CheckpointTest(unittest.TestCase):
+    def test_ppo_state_contains_policy_and_adam_buffers(self):
+        policy = GaussianActorCritic(3, 1, 4, 1, 1)
+        ppo = PPO(policy, pi_lr=1e-3, vf_lr=2e-3, gamma=0.97, lamda=0.89, K_epochs=2,
+                  eps_clip=0.17, batch_size=4, vf_coef=0.8, entropy_coef=0.03)
+        ppo.gamma = 0.9
+        ppo.pi_optimizer.lr.assign(lander.Tensor([0.005])).realize()
+        self.assertEqual(ppo.config['gamma'], 0.9)
+        self.assertAlmostEqual(ppo.config['pi_lr'], 0.005)
+        state = ppo.state_dict()
+        for name, tensor in policy.state_dict().items():
+            self.assertIs(state['policy.' + name], tensor)
+        for name in ('pi_optimizer', 'vf_optimizer'):
+            optimizer = getattr(ppo, name)
+            for key in ('lr', 'b1_t', 'b2_t'):
+                self.assertIs(state[name + '.' + key], getattr(optimizer, key))
+            for key in ('m', 'v'):
+                for index, tensor in enumerate(getattr(optimizer, key)):
+                    self.assertIs(state[f'{name}.{key}.{index}'], tensor)
+        self.assertFalse(any('.params.' in name for name in state))
+
     def test_policy_round_trip(self):
         observations = np.linspace(-0.5, 0.5, 32, dtype=np.float32).reshape(4, 8)
         for trainer in (lander, reference_lander):
