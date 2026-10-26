@@ -3,6 +3,7 @@ import numpy as np
 import time
 import os
 import warnings
+import json
 
 METAL = bool(int(os.getenv('METAL', '0')))
 os.environ['DEV'] = 'METAL' if METAL else 'CPU'
@@ -87,6 +88,8 @@ class MLP:
 
 class ActorCritic:
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
+        self.config = dict(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim,
+                           actor_layers=actor_layers, critic_layers=critic_layers)
         self.actor = MLP(state_dim, action_dim, hidden_dim, actor_layers)
         self.critic = MLP(state_dim, 1, hidden_dim, critic_layers)
         self.actor.layers[-1].weight.assign(self.actor.layers[-1].weight * 0.01).realize()
@@ -118,6 +121,21 @@ class ActorCritic:
         sample = np.random.normal(mean, self.action_std).astype(np.float32)
         action = np.clip(sample, -1, 1)
         return action, sample
+
+    def state_dict(self):
+        return nn.state.get_state_dict(dict(actor=self.actor, critic=self.critic, log_std=self.log_std,
+                                            observation_scale=self.observation_scale))
+
+    def save(self, path):
+        nn.state.safe_save(self.state_dict(), path, metadata={'config': json.dumps(self.config)})
+
+    @classmethod
+    def load(cls, path):
+        _, _, header = nn.state.safe_load_metadata(path)
+        model = cls(**json.loads(header['__metadata__']['config']))
+        nn.state.load_state_dict(model.state_dict(), nn.state.safe_load(path), verbose=False)
+        model.refresh_action_std()
+        return model
 
     def refresh_action_std(self):
         self.action_std = np.exp(self.log_std.clip(-5, 2).numpy())
