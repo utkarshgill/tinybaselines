@@ -1,6 +1,5 @@
 import gymnasium as gym
 import numpy as np
-import time
 import os
 import warnings
 
@@ -12,7 +11,7 @@ if not METAL:
 from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
 from .config import ENV_NAME, OBS_SCALE
-from tinybaselines import GaussianActorCritic, PPO
+from tinybaselines import GaussianActorCritic, PPO, learn
 from tinybaselines.ppo import clip_grad_norm, normal_log_prob
 from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
 
@@ -75,7 +74,7 @@ class TrainingContext:
         self.ppo = PPO(self.ac, pi_lr, vf_lr, gamma, gae_lambda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef)
 
         self.env = make_env(num_envs)
-        self.rollout_state = RolloutState(self.env.reset()[0], np.zeros(num_envs))
+        self.training = learn(self.env, self.ppo, total_timesteps=max_epochs * steps_per_epoch, rollout_steps=steps_per_epoch)
         self.eval_env = make_env(min(num_envs, eval_episodes), asynchronous=False)
         self.all_episode_returns = []
         self.last_eval_stochastic = float('-inf')
@@ -99,17 +98,10 @@ class TrainingContext:
 
 
 def train_one_epoch(epoch, ctx):
-    t0 = time.perf_counter()
-    batch, ep_rets = rollout(
-        ctx.env, ctx.ac, num_steps=steps_per_epoch, state=ctx.rollout_state
-    )
-    t1 = time.perf_counter()
-    ctx.rollout_times.append(t1 - t0)
-
-    t0 = time.perf_counter()
-    ctx.ppo.update(batch)
-    t1 = time.perf_counter()
-    ctx.update_times.append(t1 - t0)
+    step = next(ctx.training)
+    ep_rets = step.episode_returns
+    ctx.rollout_times.append(step.rollout_seconds)
+    ctx.update_times.append(step.update_seconds)
 
     ctx.all_episode_returns.extend(ep_rets)
     ctx.pbar.update(1)
@@ -140,10 +132,12 @@ def train_one_epoch(epoch, ctx):
 
 def train():
     ctx = TrainingContext()
-    for epoch in range(max_epochs):
-        if train_one_epoch(epoch, ctx):
-            break
-    ctx.cleanup()
+    try:
+        for epoch in range(max_epochs):
+            if train_one_epoch(epoch, ctx):
+                break
+    finally:
+        ctx.cleanup()
 
 
 def evaluate_policy(actor_critic, num_episodes=eval_episodes, render=False, env=None, deterministic=True):

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from tinybaselines import GaussianActorCritic, PPO, learn
+from tinybaselines import GaussianActorCritic, PPO, TrainingStep, learn
 
 
 class TrainingTest(unittest.TestCase):
@@ -62,6 +62,29 @@ class TrainingTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'failed update'):
             next(learn(self.env, self.ppo, total_timesteps=4, rollout_steps=4))
         self.env.close.assert_not_called()
+
+    def test_example_uses_training_progress(self):
+        from examples.lunar_lander import train
+
+        step = TrainingStep(8, [3.0, 4.0], 0.1, 0.2)
+        ctx = SimpleNamespace(training=iter([step]), pbar=Mock(), rollout_times=[], update_times=[],
+                              all_episode_returns=[], last_eval_stochastic=-np.inf)
+        with patch.object(train, 'PLOT', False):
+            self.assertFalse(train.train_one_epoch(1, ctx))
+        self.assertEqual(ctx.all_episode_returns, [3.0, 4.0])
+        self.assertEqual(ctx.rollout_times, [0.1])
+        self.assertEqual(ctx.update_times, [0.2])
+        ctx.pbar.update.assert_called_once_with(1)
+
+    def test_example_closes_environments_on_failure(self):
+        from examples.lunar_lander import train
+
+        ctx = Mock()
+        with patch.object(train, 'TrainingContext', return_value=ctx), \
+             patch.object(train, 'train_one_epoch', side_effect=RuntimeError('failed update')):
+            with self.assertRaisesRegex(RuntimeError, 'failed update'):
+                train.train()
+        ctx.cleanup.assert_called_once()
 
     def test_trains_a_policy(self):
         policy = GaussianActorCritic(3, 1, 4, 1, 1)
