@@ -8,6 +8,28 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_adam_with_identical_gradients(self):
+        tiny_parameter = lander.Tensor.zeros(3).is_param_()
+        torch_parameter = torch.nn.Parameter(torch.zeros(3))
+        tiny_optimizer = lander.nn.optim.Adam([tiny_parameter], lr=1e-3)
+        torch_optimizer = torch.optim.Adam([torch_parameter], lr=1e-3)
+
+        @lander.TinyJit
+        @lander.Context(TRAINING=1)
+        def step(gradient):
+            tiny_parameter.grad = gradient
+            return tiny_parameter.realize(*tiny_optimizer.schedule_step())
+
+        gradient = lander.Tensor.zeros(3).realize()
+        for scale in (1.0, -2.0, 0.5, 1.0):
+            values = np.array([2.25e-9, 0.5, 0], dtype=np.float32) * scale
+            gradient.assign(lander.Tensor(values)).realize()
+            torch_parameter.grad = torch.from_numpy(values.copy())
+            step(gradient)
+            torch_optimizer.step()
+            np.testing.assert_allclose(tiny_parameter.numpy(), torch_parameter.detach().numpy(), rtol=0, atol=1e-7)
+        self.assertIsNotNone(step.captured)
+
     def test_gradient_clipping(self):
         for scale in (1.0, 0.01, 0.0):
             with self.subTest(scale=scale):
@@ -23,7 +45,7 @@ class ParityTest(unittest.TestCase):
                     np.testing.assert_allclose(tiny.grad.numpy(), reference.grad.numpy(), rtol=1e-5, atol=1e-6)
                 self.assertIsNone(tiny_params[-1].grad)
 
-    def test_ppo_loss_and_gradients(self):
+    def test_ppo_training_steps(self):
         architecture = dict(state_dim=8, action_dim=2, hidden_dim=128, actor_layers=4, critic_layers=4)
         tiny_model = lander.ActorCritic(**architecture)
         torch_model = reference_lander.ActorCritic(**architecture).cpu()
@@ -54,15 +76,28 @@ class ParityTest(unittest.TestCase):
                         eps_clip=0.2, batch_size=8, vf_coef=1.0, entropy_coef=0.001)
         tiny_ppo = lander.PPO(tiny_model, **settings)
         torch_ppo = reference_lander.PPO(torch_model, **settings)
+        tiny_batch = [lander.Tensor(x).realize() for x in batch]
+        torch_batch = [torch.from_numpy(x.copy()) for x in batch]
         with lander.Context(TRAINING=1):
-            actual = tiny_ppo.compute_loss(*[lander.Tensor(x) for x in batch])
+            actual = tiny_ppo.compute_loss(*tiny_batch)
             actual.backward()
-        expected = torch_ppo.compute_loss(*[torch.from_numpy(x) for x in batch])
+        expected = torch_ppo.compute_loss(*torch_batch)
         expected.backward()
         np.testing.assert_allclose(actual.numpy(), expected.detach().numpy(), rtol=1e-5, atol=1e-6)
         for index, (tiny, reference) in enumerate(zip(tiny_params, torch_params)):
             with self.subTest(parameter=index):
                 np.testing.assert_allclose(tiny.grad.numpy(), reference.grad.numpy(), rtol=1e-5, atol=1e-6)
+        for step in range(4):
+            returns = batch[-1] + np.float32(step * 0.1)
+            tiny_batch[-1].assign(lander.Tensor(returns)).realize()
+            torch_batch[-1].copy_(torch.from_numpy(returns))
+            actual = tiny_ppo.train_step(*tiny_batch)
+            expected = torch_ppo.train_step(*torch_batch)
+            np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-6)
+            for index, (tiny, reference) in enumerate(zip(tiny_params, torch_params)):
+                with self.subTest(step=step, parameter=index):
+                    # Near-zero gradient roundoff is amplified by Adam.
+                    np.testing.assert_allclose(tiny.numpy(), reference.detach().numpy(), rtol=0, atol=2e-6)
 
     def test_gaussian_log_prob_and_gradients(self):
         means = np.array([[0.2, -0.3], [1.5, -1.5]], dtype=np.float32)
