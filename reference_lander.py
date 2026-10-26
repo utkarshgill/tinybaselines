@@ -8,15 +8,12 @@ import torch.optim as optim
 import os
 import warnings
 from tqdm import trange
+from lunar_lander import ENV_NAME, OBS_SCALE
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
-env_name = 'LunarLanderContinuous-v3'
 state_dim, action_dim = 8, 2
 num_envs = int(os.getenv('NUM_ENVS', 100))
-
-# https://gymnasium.farama.org/environments/box2d/lunar_lander/#:~:text=For%20the%20default%20values%20of%20VIEWPORT_W%2C%20VIEWPORT_H%2C%20SCALE%2C%20and%20FPS%2C%20the%20scale%20factors%20equal%3A%20%E2%80%98x%E2%80%99%3A%2010%2C%20%E2%80%98y%E2%80%99%3A%206.666%2C%20%E2%80%98vx%E2%80%99%3A%205%2C%20%E2%80%98vy%E2%80%99%3A%207.5%2C%20%E2%80%98angle%E2%80%99%3A%201%2C%20%E2%80%98angular%20velocity%E2%80%99%3A%202.5
-OBS_SCALE = np.array([10, 6.666, 5, 7.5, 1, 2.5, 1, 1], dtype=np.float32)
 
 max_epochs, steps_per_epoch = 100, 20_000
 log_interval, eval_interval = 5, 5
@@ -44,7 +41,7 @@ def make_env(n, render=False, asynchronous=True):
     render_mode = 'human' if render else None
     env_class = gym.vector.AsyncVectorEnv if asynchronous else gym.vector.SyncVectorEnv
     return env_class(
-        [lambda: gym.make(env_name, render_mode=render_mode) for _ in range(n)],
+        [lambda: gym.make(ENV_NAME, render_mode=render_mode) for _ in range(n)],
     )
 
 def update_plot(ax, returns, threshold):

@@ -11,14 +11,12 @@ if not METAL:
 
 from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
+from lunar_lander import ENV_NAME, OBS_SCALE
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
-env_name = 'LunarLanderContinuous-v3'
 state_dim, action_dim = 8, 2
 num_envs = int(os.getenv('NUM_ENVS', 100))
-
-OBS_SCALE = np.array([10, 6.666, 5, 7.5, 1, 2.5, 1, 1], dtype=np.float32)
 
 max_epochs, steps_per_epoch = 100, 20_000
 log_interval, eval_interval = 5, 5
@@ -47,7 +45,7 @@ def make_env(n, render=False, asynchronous=True):
     render_mode = 'human' if render else None
     env_class = gym.vector.AsyncVectorEnv if asynchronous else gym.vector.SyncVectorEnv
     return env_class(
-        [lambda: gym.make(env_name, render_mode=render_mode) for _ in range(n)],
+        [lambda: gym.make(ENV_NAME, render_mode=render_mode) for _ in range(n)],
     )
 
 
