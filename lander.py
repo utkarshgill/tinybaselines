@@ -264,6 +264,7 @@ class TrainingContext:
         self.ppo = PPO(self.ac, pi_lr, vf_lr, gamma, gae_lambda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef)
 
         self.env = make_env(num_envs)
+        self.rollout_state = RolloutState(self.env.reset()[0], np.zeros(num_envs))
         self.eval_env = make_env(min(num_envs, eval_episodes), asynchronous=False)
         self.all_episode_returns = []
         self.last_eval_stochastic = float('-inf')
@@ -288,7 +289,9 @@ class TrainingContext:
 
 def train_one_epoch(epoch, ctx):
     t0 = time.perf_counter()
-    obs, raw_act, rew, terminated, truncated, next_obs, ep_rets = rollout(ctx.env, ctx.ac, num_steps=steps_per_epoch)
+    obs, raw_act, rew, terminated, truncated, next_obs, ep_rets = rollout(
+        ctx.env, ctx.ac, num_steps=steps_per_epoch, state=ctx.rollout_state
+    )
     t1 = time.perf_counter()
     ctx.rollout_times.append(t1 - t0)
 
