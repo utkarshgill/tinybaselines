@@ -142,11 +142,11 @@ class PPO:
         self.eps_clip, self.batch_size = eps_clip, batch_size
         self.vf_coef, self.entropy_coef = vf_coef, entropy_coef
 
-    def compute_advantages(self, rewards, state_values, is_terminals):
+    def compute_advantages(self, rewards, state_values, is_terminals, last_values):
         T, N = rewards.shape
         advantages = np.zeros_like(rewards, dtype=np.float32)
         gae = np.zeros(N, dtype=np.float32)
-        state_values_pad = np.concatenate([state_values, state_values[-1:]], axis=0)
+        state_values_pad = np.concatenate([state_values, last_values.reshape(1, N)], axis=0)
         for t in reversed(range(T)):
             delta = rewards[t] + self.gamma * state_values_pad[t + 1] * (1 - is_terminals[t]) - state_values_pad[t]
             gae = delta + self.gamma * self.lamda * (1 - is_terminals[t]) * gae
@@ -188,7 +188,9 @@ class PPO:
         old_mean, old_log_std, old_value = self.actor_critic(obs_flat)
         old_logprobs_np = normal_log_prob(old_mean, old_log_std, raw_act_flat).numpy()
         old_values_np = old_value.numpy().reshape(T, N)
-        advantages_np, returns_np = self.compute_advantages(rew, old_values_np, done)
+        last_obs_t = Tensor(last_obs.astype(np.float32) * OBS_SCALE, device=device)
+        last_values_np = self.actor_critic.critic(last_obs_t).numpy().reshape(N)
+        advantages_np, returns_np = self.compute_advantages(rew, old_values_np, done, last_values_np)
 
         old_logprobs = Tensor(old_logprobs_np, device=device)
         advantages = Tensor(advantages_np, device=device)

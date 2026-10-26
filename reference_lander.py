@@ -108,10 +108,10 @@ class PPO:
         self.gamma, self.lamda, self.K_epochs = gamma, lamda, K_epochs
         self.eps_clip, self.batch_size, self.vf_coef, self.entropy_coef = eps_clip, batch_size, vf_coef, entropy_coef
 
-    def compute_advantages(self, rewards, state_values, is_terminals):
+    def compute_advantages(self, rewards, state_values, is_terminals, last_values):
         T, N = rewards.shape
         advantages, gae = torch.zeros_like(rewards), torch.zeros(N, device=rewards.device)
-        state_values_pad = torch.cat([state_values, state_values[-1:]], dim=0)
+        state_values_pad = torch.cat([state_values, last_values.reshape(1, N)], dim=0)
         for t in reversed(range(T)):
             delta = rewards[t] + self.gamma * state_values_pad[t + 1] * (1 - is_terminals[t]) - state_values_pad[t]
             gae = delta + self.gamma * self.lamda * (1 - is_terminals[t]) * gae
@@ -144,7 +144,9 @@ class PPO:
             dist = torch.distributions.Normal(mean, std)
             old_logprobs = dist.log_prob(raw_act_flat).sum(-1)
             old_values = val.squeeze(-1).view(T, N)
-            advantages, returns = self.compute_advantages(rew_t, old_values, done_t)
+            last_obs_t = torch.as_tensor(last_obs, device=device, dtype=torch.float32) * OBS_SCALE_T
+            last_values = self.actor_critic.critic(last_obs_t).squeeze(-1)
+            advantages, returns = self.compute_advantages(rew_t, old_values, done_t, last_values)
         
         num_samples = obs_flat.size(0)
         for _ in range(self.K_epochs):
