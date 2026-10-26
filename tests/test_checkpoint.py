@@ -5,8 +5,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-import lander
-import reference_lander
+from examples.lunar_lander import train as lander, reference as reference_lander
 
 
 class CheckpointTest(unittest.TestCase):

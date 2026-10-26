@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 
 import torch
 
-import reference_lander
-import run_learning
+from examples.lunar_lander import reference as reference_lander, run_learning
 
 
 class LearningRunTest(unittest.TestCase):

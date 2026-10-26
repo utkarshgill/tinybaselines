@@ -13,7 +13,7 @@ def run(framework, output):
     started = time.perf_counter()
     output.mkdir(parents=True, exist_ok=False)
     os.environ.update(NUM_ENVS='4', METAL='0', PLOT='0', RENDER='0', CUDA_VISIBLE_DEVICES='')
-    trainer = importlib.import_module('lander' if framework == 'tinygrad' else 'reference_lander')
+    trainer = importlib.import_module('examples.lunar_lander.train' if framework == 'tinygrad' else 'examples.lunar_lander.reference')
     settings = {name: getattr(trainer, name) for name in (
         'num_envs', 'steps_per_epoch', 'max_epochs', 'batch_size', 'K_epochs', 'pi_lr', 'vf_lr',
         'gamma', 'gae_lambda', 'eps_clip', 'vf_coef', 'entropy_coef', 'eval_interval', 'eval_episodes', 'solved_threshold',

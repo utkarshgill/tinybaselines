@@ -1,5 +1,2 @@
 tinygrad @ git+https://github.com/tinygrad/tinygrad.git@5b60a09ab0a7f20c3426e505251c48cac020d1fa
-gymnasium[box2d]==1.1.1
 numpy>=1.26,<3
-tqdm>=4.65
-matplotlib>=3.5

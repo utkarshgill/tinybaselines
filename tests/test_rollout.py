@@ -4,8 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-import lander
-import reference_lander
+from examples.lunar_lander import train as lander, reference as reference_lander
 
 
 class RolloutTest(unittest.TestCase):

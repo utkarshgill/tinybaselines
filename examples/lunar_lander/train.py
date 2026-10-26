@@ -11,7 +11,7 @@ if not METAL:
 
 from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
-from examples.lunar_lander.config import ENV_NAME, OBS_SCALE
+from .config import ENV_NAME, OBS_SCALE
 from tinybaselines import GaussianActorCritic, PPO
 from tinybaselines.ppo import clip_grad_norm, normal_log_prob
 from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
