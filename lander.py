@@ -64,9 +64,12 @@ def update_plot(ax, returns, threshold):
     plt.pause(0.01)
 
 
-def track_episode_returns(done_mask, ep_returns, ep_rets):
+def track_episode_returns(done_mask, ep_returns, ep_rets, remaining=None):
     for idx in np.where(done_mask)[0]:
-        ep_returns.append(ep_rets[idx])
+        if remaining is None or remaining[idx] > 0:
+            ep_returns.append(ep_rets[idx])
+            if remaining is not None:
+                remaining[idx] -= 1
         ep_rets[idx] = 0.0
 
 

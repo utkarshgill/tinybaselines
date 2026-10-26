@@ -9,6 +9,17 @@ import reference_lander
 
 
 class RolloutTest(unittest.TestCase):
+    def test_episode_quota(self):
+        for trainer in (lander, reference_lander):
+            with self.subTest(trainer=trainer.__name__):
+                remaining = np.array([0, 1, 1, 0])
+                pending = np.array([1, 10, 300, 1000], dtype=float)
+                completed = []
+                trainer.track_episode_returns(np.ones(4, bool), completed, pending, remaining)
+                np.testing.assert_array_equal(completed, [10, 300])
+                np.testing.assert_array_equal(remaining, np.zeros(4))
+                np.testing.assert_array_equal(pending, np.zeros(4))
+
     def test_episode_crosses_rollout_boundary(self):
         actions = np.zeros((4, 2), dtype=np.float32)
         policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
