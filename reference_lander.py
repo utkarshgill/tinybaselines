@@ -9,7 +9,7 @@ import os
 import warnings
 from tqdm import trange
 from examples.lunar_lander.config import ENV_NAME, OBS_SCALE
-from rollout import RolloutBatch, RolloutState
+from tinybaselines.rollout import RolloutBatch, RolloutState
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
