@@ -1,5 +1,11 @@
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 import numpy as np
 from tinygrad import Context, Tensor, TinyJit, nn
+
+from .policies import GaussianActorCritic
 
 LOG_2PI = float(np.log(2.0 * np.pi))
 NORMAL_ENTROPY_CONSTANT = float(0.5 * np.log(2.0 * np.pi * np.e))
@@ -47,6 +53,27 @@ class PPO:
             optimizer = getattr(self, name)
             state[name] = {key: getattr(optimizer, key) for key in ('lr', 'b1_t', 'b2_t', 'm', 'v')}
         return nn.state.get_state_dict(state)
+
+    def save(self, path):
+        path = Path(path)
+        metadata = dict(format='tinybaselines.ppo.v1', policy_config=json.dumps(self.actor_critic.config),
+                        ppo_config=json.dumps(self.config))
+        with TemporaryDirectory(dir=path.parent) as directory:
+            temporary = Path(directory) / path.name
+            nn.state.safe_save(self.state_dict(), temporary, metadata=metadata)
+            temporary.replace(path)
+
+    @classmethod
+    def load(cls, path):
+        _, _, header = nn.state.safe_load_metadata(path)
+        metadata = header.get('__metadata__', {})
+        if metadata.get('format') != 'tinybaselines.ppo.v1':
+            raise ValueError('unsupported PPO checkpoint format')
+        policy = GaussianActorCritic(**json.loads(metadata['policy_config']))
+        ppo = cls(policy, **json.loads(metadata['ppo_config']))
+        nn.state.load_state_dict(ppo.state_dict(), nn.state.safe_load(path), verbose=False)
+        policy.refresh_inference()
+        return ppo
 
     def compute_advantages(self, rewards, state_values, terminated, truncated, next_values):
         T, N = rewards.shape
