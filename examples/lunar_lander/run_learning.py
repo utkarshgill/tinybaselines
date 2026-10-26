@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import subprocess
 import time
+import traceback
 
 
 def run(framework, output):
@@ -14,6 +15,8 @@ def run(framework, output):
     output.mkdir(parents=True, exist_ok=False)
     os.environ.update(NUM_ENVS='4', METAL='0', PLOT='0', RENDER='0', CUDA_VISIBLE_DEVICES='')
     trainer = importlib.import_module('examples.lunar_lander.train' if framework == 'tinygrad' else 'examples.lunar_lander.reference')
+    if framework == 'tinygrad':
+        from tinygrad.helpers import NUM_CPU_THREADS
     settings = {name: getattr(trainer, name) for name in (
         'num_envs', 'steps_per_epoch', 'max_epochs', 'batch_size', 'K_epochs', 'pi_lr', 'vf_lr',
         'gamma', 'gae_lambda', 'eps_clip', 'vf_coef', 'entropy_coef', 'eval_interval', 'eval_episodes', 'solved_threshold',
@@ -36,7 +39,8 @@ def run(framework, output):
                    versions={name: metadata.version(name) for name in ('gymnasium', 'numpy', framework)},
                    backend_source=json.loads(metadata.distribution(framework).read_text('direct_url.json') or '{}'),
                    settings=settings, architecture=ctx.ac.config, beam=os.getenv('BEAM'),
-                   torch_threads=trainer.torch.get_num_threads() if framework == 'torch' else None)
+                   torch_threads=trainer.torch.get_num_threads() if framework == 'torch' else None,
+                   tinygrad_cpu_threads=NUM_CPU_THREADS.value if framework == 'tinygrad' else None)
             for epoch in range(trainer.max_epochs):
                 epoch_started = time.perf_counter()
                 solved = trainer.train_one_epoch(epoch, ctx)
@@ -56,6 +60,9 @@ def run(framework, output):
             score = trainer.evaluate_policy(restored, env=ctx.eval_env, deterministic=False)
             record(event='final', steps=(epoch + 1) * trainer.steps_per_epoch, score=score,
                    seconds_to_stop=seconds_to_stop, stopped_on_threshold=solved, policy=policy_path.name)
+        except Exception as error:
+            record(event='error', error_type=type(error).__name__, message=str(error), traceback=traceback.format_exc())
+            raise
         finally:
             ctx.cleanup()
 

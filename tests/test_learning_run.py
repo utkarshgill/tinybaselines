@@ -12,6 +12,21 @@ from examples.lunar_lander import reference as reference_lander, run_learning
 
 
 class LearningRunTest(unittest.TestCase):
+    def test_records_failure_and_closes_environments(self):
+        policy = SimpleNamespace(log_std=torch.zeros(2), config={})
+        ctx = SimpleNamespace(ac=policy, cleanup=Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'run'
+            with patch.dict(os.environ), patch.multiple(reference_lander,
+                    TrainingContext=Mock(return_value=ctx), train_one_epoch=Mock(side_effect=RuntimeError('failed update'))):
+                with self.assertRaisesRegex(RuntimeError, 'failed update'):
+                    run_learning.run('torch', output)
+            failure = json.loads((output / 'metrics.jsonl').read_text().splitlines()[-1])
+            self.assertEqual(failure['event'], 'error')
+            self.assertEqual(failure['error_type'], 'RuntimeError')
+            self.assertIn('failed update', failure['traceback'])
+            ctx.cleanup.assert_called_once()
+
     def test_records_steps_and_evaluates_saved_policy(self):
         policy = SimpleNamespace(log_std=torch.zeros(2), config={}, save=Mock())
         ctx = SimpleNamespace(ac=policy, eval_env=object(), cleanup=Mock(), rollout_times=[0.0], update_times=[0.0])
