@@ -183,7 +183,7 @@ class PPO:
         clip_grad_norm(self.critic_parameters, 0.5)
         return loss.realize(*self.optimizer.schedule_step())
 
-    def update(self, batch):
+    def prepare(self, batch):
         T, N = batch.rewards.shape
         obs_np = batch.observations.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE
         raw_act_np = batch.raw_actions.reshape(-1, action_dim).astype(np.float32)
@@ -202,6 +202,10 @@ class PPO:
         old_logprobs = Tensor(old_logprobs_np, device=device)
         advantages = Tensor(advantages_np, device=device)
         returns = Tensor(returns_np, device=device)
+        return obs_flat, raw_act_flat, old_logprobs, advantages, returns
+
+    def update(self, batch):
+        obs_flat, raw_act_flat, old_logprobs, advantages, returns = self.prepare(batch)
         num_samples = obs_flat.shape[0]
 
         for _ in range(self.K_epochs):

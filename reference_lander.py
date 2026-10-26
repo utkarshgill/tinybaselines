@@ -147,7 +147,7 @@ class PPO:
         self.vf_optimizer.step()
         return loss.detach()
 
-    def update(self, batch):
+    def prepare(self, batch):
         T, N = batch.rewards.shape
         obs_flat = torch.from_numpy(batch.observations.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
         raw_act_flat = torch.from_numpy(batch.raw_actions.reshape(-1, action_dim)).to(device=device, dtype=torch.float32)
@@ -165,6 +165,10 @@ class PPO:
             next_values = self.actor_critic.critic(next_obs_t).squeeze(-1).view(T, N)
             advantages, returns = self.compute_advantages(rew_t, old_values, terminated_t, truncated_t, next_values)
         
+        return obs_flat, raw_act_flat, old_logprobs, advantages, returns
+
+    def update(self, batch):
+        obs_flat, raw_act_flat, old_logprobs, advantages, returns = self.prepare(batch)
         num_samples = obs_flat.size(0)
         for _ in range(self.K_epochs):
             perm = torch.randperm(num_samples, device=device)

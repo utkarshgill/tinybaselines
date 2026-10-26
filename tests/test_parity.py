@@ -96,6 +96,18 @@ class ParityTest(unittest.TestCase):
                         eps_clip=0.2, batch_size=8, vf_coef=1.0, entropy_coef=0.001)
         tiny_ppo = lander.PPO(tiny_model, **settings)
         torch_ppo = reference_lander.PPO(torch_model, **settings)
+        rollout = lander.RolloutBatch(
+            observations=states.reshape(2, 4, 8), raw_actions=actions.reshape(2, 4, 2),
+            rewards=batch[-1].reshape(2, 4),
+            terminated=np.array([[True, False, False, False], [False, False, False, False]]),
+            truncated=np.array([[False, True, False, False], [False, False, True, False]]),
+            next_observations=(states + 0.1).reshape(2, 4, 8),
+        )
+        prepared_tiny = tiny_ppo.prepare(rollout)
+        prepared_torch = torch_ppo.prepare(rollout)
+        for index, (actual, expected) in enumerate(zip(prepared_tiny, prepared_torch)):
+            with self.subTest(prepared_field=index):
+                np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-6)
         tiny_batch = [lander.Tensor(x).realize() for x in batch]
         torch_batch = [torch.from_numpy(x.copy()) for x in batch]
         with lander.Context(TRAINING=1):
