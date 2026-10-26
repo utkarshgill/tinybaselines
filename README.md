@@ -40,6 +40,7 @@ actions, raw_actions = policy.act(state.observations, deterministic=True)
 continue. `returns` contains completed episode returns. `actions` go to the
 environment; `raw_actions` go into PPO.
 The collector uses Gymnasium vector environments with same-step autoreset.
+Truncations need `infos['final_obs']` from before the reset. True terminals do not.
 
 The full LunarLander trainer, evaluation, and PyTorch reference live in
 `examples/lunar_lander`.

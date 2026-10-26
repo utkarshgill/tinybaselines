@@ -62,8 +62,12 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         if collect:
             rew[t], terminations[t], truncations[t] = rewards, terminated, truncated
             next_obs[t] = states
+            final_obs = infos.get('final_obs')
             for idx in np.flatnonzero(d):
-                next_obs[t, idx] = infos['final_obs'][idx]
+                if final_obs is not None and final_obs[idx] is not None:
+                    next_obs[t, idx] = final_obs[idx]
+                elif truncated[idx] and not terminated[idx]:
+                    raise ValueError('truncated transitions require final_obs')
 
         ep_rets += rewards
         track_episode_returns(d, ep_returns, ep_rets, remaining)
