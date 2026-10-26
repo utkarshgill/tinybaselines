@@ -14,7 +14,7 @@ from tqdm import trange
 from examples.lunar_lander.config import ENV_NAME, OBS_SCALE
 from tinybaselines import GaussianActorCritic, PPO
 from tinybaselines.ppo import clip_grad_norm, normal_log_prob
-from tinybaselines.rollout import RolloutBatch, RolloutState
+from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
@@ -64,67 +64,9 @@ def update_plot(ax, returns, threshold):
     plt.pause(0.01)
 
 
-def track_episode_returns(done_mask, ep_returns, ep_rets, remaining=None):
-    for idx in np.where(done_mask)[0]:
-        if remaining is None or remaining[idx] > 0:
-            ep_returns.append(ep_rets[idx])
-            if remaining is not None:
-                remaining[idx] -= 1
-        ep_rets[idx] = 0.0
-
-
 class ActorCritic(GaussianActorCritic):
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
         super().__init__(state_dim, action_dim, hidden_dim, actor_layers, critic_layers, observation_scale=OBS_SCALE)
-
-
-
-
-def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=False, state=None):
-    assert (num_steps is None) != (num_episodes is None), 'Specify exactly one: num_steps or num_episodes'
-    if num_episodes is not None and num_episodes <= 0:
-        raise ValueError('num_episodes must be positive')
-
-    N = env.num_envs
-    if state is None:
-        state = RolloutState(env.reset()[0], np.zeros(N))
-    states = state.observations
-    ep_returns, ep_rets = [], state.episode_returns
-
-    collect = num_steps is not None
-    remaining = None if collect else (num_episodes + np.arange(N)) // N
-    if collect:
-        T = num_steps // N
-        obs = np.empty((T, N, state_dim), dtype=np.float32)
-        next_obs = np.empty_like(obs)
-        raw_act = np.empty((T, N, action_dim), dtype=np.float32)
-        rew = np.empty((T, N), dtype=np.float32)
-        terminations = np.empty((T, N), dtype=bool)
-        truncations = np.empty((T, N), dtype=bool)
-
-    t = 0
-    while True:
-        actions, raw_actions = actor_critic.act(states, deterministic=deterministic)
-        if collect:
-            obs[t], raw_act[t] = states, raw_actions
-
-        states, rewards, terminated, truncated, infos = env.step(actions)
-        d = np.logical_or(terminated, truncated)
-        if collect:
-            rew[t], terminations[t], truncations[t] = rewards, terminated, truncated
-            next_obs[t] = states
-            for idx in np.flatnonzero(d):
-                next_obs[t, idx] = infos['final_obs'][idx]
-
-        ep_rets += rewards
-        track_episode_returns(d, ep_returns, ep_rets, remaining)
-        t += 1
-
-        if (collect and t >= T) or (not collect and not remaining.any()):
-            break
-
-    state.observations = states
-    return (RolloutBatch(obs, raw_act, rew, terminations, truncations, next_obs), ep_returns) if collect else ep_returns
 
 
 class TrainingContext:

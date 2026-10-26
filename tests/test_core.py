@@ -1,14 +1,26 @@
 import subprocess
 import sys
+from types import SimpleNamespace
 import unittest
 
 import numpy as np
 
-from tinybaselines import GaussianActorCritic, PPO
+from tinybaselines import GaussianActorCritic, PPO, rollout
 from tinybaselines.rollout import RolloutBatch
 
 
 class CoreTest(unittest.TestCase):
+    def test_rollout_uses_observation_and_action_shapes(self):
+        observations = np.zeros((2, 3), np.float32)
+        actions = np.zeros((2, 1), np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        env = SimpleNamespace(num_envs=2, reset=lambda: (observations, {}),
+                              step=lambda actions: (observations, np.ones(2), np.zeros(2, bool), np.zeros(2, bool), {}))
+        batch, episodes = rollout(env, policy, num_steps=6)
+        self.assertEqual(batch.observations.shape, (3, 2, 3))
+        self.assertEqual(batch.raw_actions.shape, (3, 2, 1))
+        self.assertEqual(episodes, [])
+
     def test_import_without_example_dependencies(self):
         subprocess.run([sys.executable, '-c',
                         'import sys; import tinybaselines; '
