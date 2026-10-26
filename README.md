@@ -2,7 +2,7 @@
 
 PPO in tinygrad. Continuous actions clipped to `[-1, 1]`.
 
-LunarLander needs Python 3.11 and clang.
+Python 3.11 and clang.
 
 ```sh
 python3.11 -m venv .venv
@@ -73,3 +73,7 @@ DEV=CPU BEAM=0 python -m examples.pendulum.train --output runs/pendulum
 
 The output directory contains the configuration, episode returns, update times,
 and a PPO checkpoint. Initial and final evaluations each use 100 fresh stochastic episodes.
+
+In one four-environment CPU run, mean return improved from -1,221.9 to -141.4
+after 200,704 transitions. The final evaluation used the reloaded checkpoint.
+[Run record](examples/pendulum/results/cpu.jsonl).
