@@ -13,15 +13,18 @@ class RolloutTest(unittest.TestCase):
         terminated = np.array([True, False, True, False])
         truncated = np.array([False, True, True, False])
         states = np.zeros((4, 8), dtype=np.float32)
+        final_obs = np.full((4, 8), 7, dtype=np.float32)
         actions = np.zeros((4, 2), dtype=np.float32)
         policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
         env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}),
-                              step=lambda actions: (states, np.ones(4), terminated, truncated, {}))
+                              step=lambda actions: (states, np.ones(4), terminated, truncated, {'final_obs': final_obs}))
         for trainer in (lander, reference_lander):
             with self.subTest(trainer=trainer.__name__):
                 result = trainer.rollout(env, policy, num_steps=4)
                 np.testing.assert_array_equal(result[3][0], terminated)
                 np.testing.assert_array_equal(result[4][0], truncated)
+                np.testing.assert_array_equal(result[5][0, :3], final_obs[:3])
+                np.testing.assert_array_equal(result[5][0, 3], states[3])
                 self.assertEqual(len(result[-1]), 3)
 
     def test_each_step_is_a_transition(self):
@@ -40,7 +43,7 @@ class RolloutTest(unittest.TestCase):
                 finally:
                     env.close()
 
-    def test_final_observation_is_a_snapshot(self):
+    def test_next_observations_are_snapshots(self):
         for trainer in (lander, reference_lander):
             with self.subTest(trainer=trainer.__name__):
                 states = np.zeros((4, 8), dtype=np.float32)
@@ -52,11 +55,11 @@ class RolloutTest(unittest.TestCase):
                 env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}), step=step)
                 actions = np.zeros((4, 2), dtype=np.float32)
                 policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
-                obs, _, _, _, _, last_obs, _ = trainer.rollout(env, policy, num_steps=8)
+                obs, _, _, _, _, next_obs, _ = trainer.rollout(env, policy, num_steps=8)
                 np.testing.assert_array_equal(obs[:, 0, 0], [0, 1])
-                np.testing.assert_array_equal(last_obs, np.full((4, 8), 2))
+                np.testing.assert_array_equal(next_obs[:, 0, 0], [1, 2])
                 states[:] = 99
-                np.testing.assert_array_equal(last_obs, np.full((4, 8), 2))
+                np.testing.assert_array_equal(next_obs[:, 0, 0], [1, 2])
 
     def test_bootstrap_values(self):
         cases = (

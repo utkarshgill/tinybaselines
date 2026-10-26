@@ -224,6 +224,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
     if collect:
         T = num_steps // N
         obs = np.empty((T, N, state_dim), dtype=np.float32)
+        next_obs = np.empty_like(obs)
         raw_act = np.empty((T, N, action_dim), dtype=np.float32)
         rew = np.empty((T, N), dtype=np.float32)
         terminations = np.empty((T, N), dtype=bool)
@@ -235,10 +236,13 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         if collect:
             obs[t], raw_act[t] = states, raw_actions
 
-        states, rewards, terminated, truncated, _ = env.step(actions)
+        states, rewards, terminated, truncated, infos = env.step(actions)
         d = np.logical_or(terminated, truncated)
         if collect:
             rew[t], terminations[t], truncations[t] = rewards, terminated, truncated
+            next_obs[t] = states
+            for idx in np.flatnonzero(d):
+                next_obs[t, idx] = infos['final_obs'][idx]
 
         ep_rets += rewards
         track_episode_returns(d, ep_returns, ep_rets)
@@ -247,7 +251,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         if (collect and t >= T) or (num_episodes and len(ep_returns) >= num_episodes):
             break
 
-    return (obs, raw_act, rew, terminations, truncations, states.copy(), ep_returns) if collect else ep_returns
+    return (obs, raw_act, rew, terminations, truncations, next_obs, ep_returns) if collect else ep_returns
 
 
 class TrainingContext:
@@ -280,12 +284,12 @@ class TrainingContext:
 
 def train_one_epoch(epoch, ctx):
     t0 = time.perf_counter()
-    obs, raw_act, rew, terminated, truncated, last_obs, ep_rets = rollout(ctx.env, ctx.ac, num_steps=steps_per_epoch)
+    obs, raw_act, rew, terminated, truncated, next_obs, ep_rets = rollout(ctx.env, ctx.ac, num_steps=steps_per_epoch)
     t1 = time.perf_counter()
     ctx.rollout_times.append(t1 - t0)
 
     t0 = time.perf_counter()
-    ctx.ppo.update(obs, raw_act, rew, terminated | truncated, last_obs)
+    ctx.ppo.update(obs, raw_act, rew, terminated | truncated, next_obs[-1])
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
 
