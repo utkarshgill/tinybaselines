@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -21,6 +22,23 @@ class ParityTest(unittest.TestCase):
                 expected_mean = model.actor(scaled).detach().numpy()
                 _, mean = model.act(observations, deterministic=True)
                 np.testing.assert_allclose(mean, expected_mean, rtol=1e-5, atol=1e-6)
+                batch = lander.RolloutBatch(
+                    observations=observations[None], raw_actions=np.zeros((1, 4, 2), np.float32),
+                    rewards=np.zeros((1, 4), np.float32), terminated=np.zeros((1, 4), bool),
+                    truncated=np.zeros((1, 4), bool), next_observations=2 * observations[None],
+                )
+                settings = dict(pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                                eps_clip=0.2, batch_size=4, vf_coef=1.0, entropy_coef=0.001)
+                ppo = trainer.PPO(model, **settings)
+                preprocess = model.preprocess
+                with patch.object(model, 'preprocess', side_effect=lambda obs: 2 * preprocess(obs)):
+                    _, mean = model.act(observations, deterministic=True)
+                    expected_mean = model.actor(model.preprocess(observations)).detach().numpy()
+                    np.testing.assert_allclose(mean, expected_mean, rtol=1e-5, atol=1e-6)
+                    prepared = ppo.prepare(batch)
+                    np.testing.assert_array_equal(prepared[0].numpy(), 2 * np.broadcast_to(scale, observations.shape))
+                    next_values = model.critic(model.preprocess(2 * observations)).detach().numpy().reshape(-1)
+                    np.testing.assert_allclose(prepared[-1].numpy(), 0.99 * next_values, rtol=1e-5, atol=1e-6)
                 np.testing.assert_array_equal(observations, np.ones((4, 8)))
 
     def test_train_steps_are_independent(self):

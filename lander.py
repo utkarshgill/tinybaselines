@@ -188,15 +188,13 @@ class PPO:
 
     def prepare(self, batch):
         T, N = batch.rewards.shape
-        obs_np = batch.observations.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE
-        raw_act_np = batch.raw_actions.reshape(-1, action_dim).astype(np.float32)
-
-        obs_flat = Tensor(obs_np, device=device)
+        obs_flat = self.actor_critic.preprocess(batch.observations.reshape(T * N, -1))
+        raw_act_np = batch.raw_actions.reshape(T * N, -1).astype(np.float32)
         raw_act_flat = Tensor(raw_act_np, device=device)
         old_mean, old_log_std, old_value = self.actor_critic(obs_flat)
         old_logprobs_np = normal_log_prob(old_mean, old_log_std, raw_act_flat).numpy()
         old_values_np = old_value.numpy().reshape(T, N)
-        next_obs_t = Tensor(batch.next_observations.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE, device=device)
+        next_obs_t = self.actor_critic.preprocess(batch.next_observations.reshape(T * N, -1))
         next_values_np = self.actor_critic.critic(next_obs_t).numpy().reshape(T, N)
         advantages_np, returns_np = self.compute_advantages(
             batch.rewards, old_values_np, batch.terminated, batch.truncated, next_values_np
