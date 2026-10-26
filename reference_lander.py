@@ -136,6 +136,17 @@ class PPO:
         
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
     
+    def train_step(self, batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns):
+        self.pi_optimizer.zero_grad()
+        self.vf_optimizer.zero_grad()
+        loss = self.compute_loss(batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(list(self.actor_critic.actor.parameters()) + [self.actor_critic.log_std], max_norm=0.5)
+        torch.nn.utils.clip_grad_norm_(self.actor_critic.critic.parameters(), max_norm=0.5)
+        self.pi_optimizer.step()
+        self.vf_optimizer.step()
+        return loss.detach()
+
     def update(self, obs, raw_act, rew, terminated, truncated, next_obs):
         T, N = rew.shape
         obs_flat = torch.from_numpy(obs.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
@@ -159,14 +170,7 @@ class PPO:
             perm = torch.randperm(num_samples, device=device)
             for start in range(0, num_samples, self.batch_size):
                 idx = perm[start:start + self.batch_size]
-                self.pi_optimizer.zero_grad()
-                self.vf_optimizer.zero_grad()
-                loss = self.compute_loss(obs_flat[idx], raw_act_flat[idx], old_logprobs[idx], advantages[idx], returns[idx])
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(list(self.actor_critic.actor.parameters()) + [self.actor_critic.log_std], max_norm=0.5)
-                torch.nn.utils.clip_grad_norm_(self.actor_critic.critic.parameters(), max_norm=0.5)
-                self.pi_optimizer.step()
-                self.vf_optimizer.step()
+                self.train_step(obs_flat[idx], raw_act_flat[idx], old_logprobs[idx], advantages[idx], returns[idx])
 
 def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=False, state=None):
     assert (num_steps is None) != (num_episodes is None), "Specify exactly one: num_steps or num_episodes"
