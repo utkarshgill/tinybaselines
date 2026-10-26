@@ -140,6 +140,8 @@ class ActorCritic:
     def refresh_inference(self):
         self.actor_jit.reset()
         self.action_std = np.exp(self.log_std.clip(-5, 2).numpy())
+        if not np.isfinite(self.action_std).all():
+            raise FloatingPointError('non-finite policy standard deviation')
 
 
 def normal_log_prob(action_mean, log_std, actions):

@@ -9,6 +9,12 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_rejects_nonfinite_policy_std(self):
+        model = lander.ActorCritic(8, 2, 8, 1, 1)
+        model.log_std.assign(lander.Tensor([float('nan'), 0])).realize()
+        with self.assertRaisesRegex(FloatingPointError, 'non-finite policy standard deviation'):
+            model.refresh_inference()
+
     def test_inference_tracks_optimization(self):
         random = np.random.default_rng(0)
         batch = lander.RolloutBatch(
