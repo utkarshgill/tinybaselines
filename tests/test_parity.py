@@ -8,6 +8,26 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_train_steps_are_independent(self):
+        settings = dict(pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                        eps_clip=0.2, batch_size=8, vf_coef=1.0, entropy_coef=0.001)
+        arrays = [np.zeros((8, 8)), np.zeros((8, 2)), np.zeros(8), np.ones(8), np.ones(8)]
+        batch = [lander.Tensor(x.astype(np.float32)).realize() for x in arrays]
+        trained = []
+        for instance in range(2):
+            with self.subTest(instance=instance):
+                model = lander.ActorCritic(8, 2, 8, 1, 1)
+                ppo = lander.PPO(model, **settings)
+                bias = model.critic.layers[-1].bias
+                before = bias.numpy().copy()
+                for _ in range(3):
+                    ppo.train_step(*batch)
+                self.assertFalse(np.array_equal(before, bias.numpy()))
+                self.assertIsNotNone(ppo.train_step.captured)
+                for other, snapshot in trained:
+                    np.testing.assert_array_equal(other.numpy(), snapshot)
+                trained.append((bias, bias.numpy().copy()))
+
     def test_adam_with_identical_gradients(self):
         tiny_parameter = lander.Tensor.zeros(3).is_param_()
         torch_parameter = torch.nn.Parameter(torch.zeros(3))

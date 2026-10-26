@@ -146,6 +146,7 @@ class PPO:
         self.gamma, self.lamda, self.K_epochs = gamma, lamda, K_epochs
         self.eps_clip, self.batch_size = eps_clip, batch_size
         self.vf_coef, self.entropy_coef = vf_coef, entropy_coef
+        self.train_step = TinyJit(self.train_step)
 
     def compute_advantages(self, rewards, state_values, terminated, truncated, next_values):
         T, N = rewards.shape
@@ -171,7 +172,6 @@ class PPO:
         entropy = (log_std + NORMAL_ENTROPY_CONSTANT).sum()
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
 
-    @TinyJit
     @Context(TRAINING=1)
     def train_step(self, batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns):
         self.optimizer.zero_grad()
