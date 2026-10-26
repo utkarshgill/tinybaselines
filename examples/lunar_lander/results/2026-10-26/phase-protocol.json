@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-26",
+  "hardware": "Apple M4",
+  "purpose": "Locate wall time in the real training path. These are independent stochastic runs, not identical-input backend comparisons.",
+  "source_commit": "483d1da6b213611ff1dccd9520149edd4777671d",
+  "selected_runs": {
+    "torch": "phase-torch-thread4.jsonl",
+    "tinygrad": "phase-tinygrad-thread10.jsonl"
+  },
+  "run_order": [
+    "phase-initial-torch.jsonl",
+    "phase-initial-tinygrad-thread4.jsonl",
+    "phase-tinygrad-thread4-error.jsonl",
+    "phase-torch-thread4.jsonl",
+    "phase-tinygrad-thread10.jsonl"
+  ],
+  "environment": {
+    "METAL": "0",
+    "DEV": "CPU",
+    "NUM_ENVS": "4",
+    "NUM_CPU_THREADS": "10",
+    "BEAM": "1",
+    "JIT": "1",
+    "XDG_CACHE_HOME": "$PWD/.venv/cache"
+  },
+  "requested_threads": {
+    "torch": 4,
+    "tinygrad": 10
+  },
+  "compiler_cache_directory_reused": true,
+  "epochs_per_completed_run": 3,
+  "warmup": "No epochs excluded from the records. Article table shows zero-based epoch 2; first epoch includes initial JIT calls.",
+  "timings": {
+    "seconds_total": "Wall time around train_one_epoch. Excludes backend import, environment construction, save/load and the final evaluation.",
+    "rollout_seconds": "Collection of 20000 transitions, including policy.act, environment step/IPC, and rollout buffer work.",
+    "update_seconds": "PPO.update, including preparation/GAE, shuffling/indexing, and 40 optimizer steps.",
+    "other_seconds": "seconds_total minus rollout_seconds and update_seconds. Includes scheduled evaluation, progress display and logging."
+  },
+  "evaluation": "100 fresh stochastic episodes at epoch 0 and after save/load. Three-epoch probes are not convergence runs.",
+  "initial_runs": "First Torch run and the first four-thread tinygrad failure used 8f0b31a. The initial failure has only a config record because error logging was not yet implemented.",
+  "failed_run": {
+    "file": "phase-tinygrad-thread4-error.jsonl",
+    "NUM_CPU_THREADS": "4",
+    "error_type": "KernelOptError",
+    "message": "too many threads",
+    "location": "Replaying cached beam-search options during PPO.prepare, before any epoch completed.",
+    "cache_manually_cleared": false
+  },
+  "reproduce": [
+    "METAL=0 DEV=CPU NUM_ENVS=4 NUM_CPU_THREADS=10 BEAM=1 JIT=1 XDG_CACHE_HOME=\"$PWD/.venv/cache\" .venv/bin/python -c 'from pathlib import Path; from examples.lunar_lander import reference; from examples.lunar_lander.run_learning import run; reference.max_epochs=3; run(\"torch\", Path(\"runs/torch-phases\"))'",
+    "METAL=0 DEV=CPU NUM_ENVS=4 NUM_CPU_THREADS=10 BEAM=1 JIT=1 XDG_CACHE_HOME=\"$PWD/.venv/cache\" .venv/bin/python -c 'from pathlib import Path; from examples.lunar_lander import train; from examples.lunar_lander.run_learning import run; train.max_epochs=3; run(\"tinygrad\", Path(\"runs/tinygrad-phases\"))'"
+  ]
+}
