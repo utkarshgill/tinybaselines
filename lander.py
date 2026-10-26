@@ -219,6 +219,8 @@ class PPO:
 
 def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=False, state=None):
     assert (num_steps is None) != (num_episodes is None), 'Specify exactly one: num_steps or num_episodes'
+    if num_episodes is not None and num_episodes <= 0:
+        raise ValueError('num_episodes must be positive')
 
     N = env.num_envs
     if state is None:
@@ -227,6 +229,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
     ep_returns, ep_rets = [], state.episode_returns
 
     collect = num_steps is not None
+    remaining = None if collect else (num_episodes + np.arange(N)) // N
     if collect:
         T = num_steps // N
         obs = np.empty((T, N, state_dim), dtype=np.float32)
@@ -251,10 +254,10 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
                 next_obs[t, idx] = infos['final_obs'][idx]
 
         ep_rets += rewards
-        track_episode_returns(d, ep_returns, ep_rets)
+        track_episode_returns(d, ep_returns, ep_rets, remaining)
         t += 1
 
-        if (collect and t >= T) or (num_episodes and len(ep_returns) >= num_episodes):
+        if (collect and t >= T) or (not collect and not remaining.any()):
             break
 
     state.observations = states

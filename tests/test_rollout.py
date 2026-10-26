@@ -9,6 +9,38 @@ import reference_lander
 
 
 class RolloutTest(unittest.TestCase):
+    def test_evaluation_requires_positive_episode_count(self):
+        for trainer in (lander, reference_lander):
+            for episodes in (0, -1):
+                with self.subTest(trainer=trainer.__name__, episodes=episodes):
+                    with self.assertRaisesRegex(ValueError, 'num_episodes must be positive'):
+                        trainer.rollout(None, None, num_episodes=episodes)
+
+    def test_evaluation_balances_episode_lengths(self):
+        cases = {
+            2: [300, 1000],
+            7: [1, 10, 10, 300, 300, 1000, 1000],
+            8: [1, 1, 10, 10, 300, 300, 1000, 1000],
+            100: np.repeat([1, 10, 300, 1000], 25),
+        }
+        actions = np.zeros((4, 2), dtype=np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        for trainer in (lander, reference_lander):
+            for episodes, expected in cases.items():
+                with self.subTest(trainer=trainer.__name__, episodes=episodes):
+                    ages = np.zeros(4, dtype=int)
+                    states = np.zeros((4, 8), dtype=np.float32)
+
+                    def step(actions):
+                        ages[:] += 1
+                        ended = ages == [1, 2, 3, 4]
+                        ages[ended] = 0
+                        return states, np.array([1, 5, 100, 250]), ended, np.zeros(4, bool), {}
+
+                    env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}), step=step)
+                    result = trainer.rollout(env, policy, num_episodes=episodes)
+                    np.testing.assert_array_equal(sorted(result), expected)
+
     def test_episode_quota(self):
         for trainer in (lander, reference_lander):
             with self.subTest(trainer=trainer.__name__):
