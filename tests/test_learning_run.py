@@ -14,7 +14,7 @@ from examples.lunar_lander import reference as reference_lander, run_learning
 class LearningRunTest(unittest.TestCase):
     def test_records_steps_and_evaluates_saved_policy(self):
         policy = SimpleNamespace(log_std=torch.zeros(2), config={}, save=Mock())
-        ctx = SimpleNamespace(ac=policy, eval_env=object(), cleanup=Mock())
+        ctx = SimpleNamespace(ac=policy, eval_env=object(), cleanup=Mock(), rollout_times=[0.0], update_times=[0.0])
         restored = object()
 
         def train(epoch, ctx):
@@ -33,6 +33,13 @@ class LearningRunTest(unittest.TestCase):
                     reference_lander.evaluate_policy.assert_called_once_with(restored, env=ctx.eval_env, deterministic=False)
             ctx.cleanup.assert_called_once()
             events = [json.loads(line) for line in (output / 'metrics.jsonl').read_text().splitlines()]
-            self.assertEqual([entry['steps'] for entry in events[1:]], [20_000, 40_000, 40_000])
-            self.assertEqual([entry['score'] for entry in events[1:]], [100.0, 205.0, 210.0])
+            scores = [entry for entry in events if entry['event'] in ('evaluation', 'final')]
+            self.assertEqual([entry['steps'] for entry in scores], [20_000, 40_000, 40_000])
+            self.assertEqual([entry['score'] for entry in scores], [100.0, 205.0, 210.0])
+            epochs = [entry for entry in events if entry['event'] == 'epoch']
+            self.assertEqual([entry['steps'] for entry in epochs], [20_000, 40_000])
+            for entry in epochs:
+                self.assertAlmostEqual(entry['seconds_total'],
+                                       entry['rollout_seconds'] + entry['update_seconds'] + entry['other_seconds'])
+                self.assertGreaterEqual(entry['other_seconds'], 0)
             self.assertTrue(events[-1]['stopped_on_threshold'])

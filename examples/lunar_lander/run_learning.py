@@ -38,7 +38,13 @@ def run(framework, output):
                    settings=settings, architecture=ctx.ac.config, beam=os.getenv('BEAM'),
                    torch_threads=trainer.torch.get_num_threads() if framework == 'torch' else None)
             for epoch in range(trainer.max_epochs):
+                epoch_started = time.perf_counter()
                 solved = trainer.train_one_epoch(epoch, ctx)
+                epoch_seconds = time.perf_counter() - epoch_started
+                rollout_seconds, update_seconds = ctx.rollout_times[-1], ctx.update_times[-1]
+                record(event='epoch', steps=(epoch + 1) * trainer.steps_per_epoch, seconds_total=epoch_seconds,
+                       rollout_seconds=rollout_seconds, update_seconds=update_seconds,
+                       other_seconds=epoch_seconds - rollout_seconds - update_seconds)
                 if epoch % trainer.eval_interval == 0:
                     record(event='evaluation', steps=(epoch + 1) * trainer.steps_per_epoch, score=ctx.last_eval_stochastic)
                 if solved:
