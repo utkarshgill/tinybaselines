@@ -11,7 +11,7 @@ if not METAL:
 from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
 from .config import ENV_NAME, OBS_SCALE
-from tinybaselines import GaussianActorCritic, PPO, learn
+from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
 from tinybaselines.ppo import clip_grad_norm, normal_log_prob
 from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
 
@@ -144,10 +144,11 @@ def evaluate_policy(actor_critic, num_episodes=eval_episodes, render=False, env=
     close_env = env is None
     if env is None:
         env = make_env(1 if render else num_episodes, render)
-    ep_rets = rollout(env, actor_critic, num_episodes=num_episodes, deterministic=deterministic)
-    if close_env:
-        env.close()
-    return float(np.mean(ep_rets)) if ep_rets else 0.0
+    try:
+        return float(np.mean(evaluate(env, actor_critic, num_episodes, deterministic=deterministic)))
+    finally:
+        if close_env:
+            env.close()
 
 
 if __name__ == '__main__':

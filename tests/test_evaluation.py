@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -8,6 +8,31 @@ from tinybaselines import evaluate
 
 
 class EvaluationTest(unittest.TestCase):
+    def test_example_reports_mean_and_respects_environment_ownership(self):
+        from examples.lunar_lander import train
+
+        for owns_env in (False, True):
+            with self.subTest(owns_env=owns_env):
+                env, policy = Mock(), Mock()
+                with patch.object(train, 'make_env', return_value=env), \
+                     patch.object(train, 'evaluate', return_value=[1.0, 3.0]) as evaluate:
+                    score = train.evaluate_policy(policy, num_episodes=2, env=None if owns_env else env)
+                self.assertEqual(score, 2.0)
+                evaluate.assert_called_once_with(env, policy, 2, deterministic=True)
+                self.assertEqual(env.close.call_count, int(owns_env))
+
+    def test_example_closes_owned_environment_on_failure(self):
+        from examples.lunar_lander import train
+
+        for owns_env in (False, True):
+            with self.subTest(owns_env=owns_env):
+                env = SimpleNamespace(num_envs=1, reset=Mock(return_value=(np.zeros((1, 3)), {})), close=Mock())
+                policy = SimpleNamespace(act=Mock(side_effect=RuntimeError('failed inference')))
+                with patch.object(train, 'make_env', return_value=env):
+                    with self.assertRaisesRegex(RuntimeError, 'failed inference'):
+                        train.evaluate_policy(policy, num_episodes=1, env=None if owns_env else env)
+                self.assertEqual(env.close.call_count, int(owns_env))
+
     def test_episode_quotas_and_action_modes(self):
         for deterministic in (False, True):
             for episodes, expected in ((2, [300, 1000]), (7, [1, 10, 10, 300, 300, 1000, 1000]),
