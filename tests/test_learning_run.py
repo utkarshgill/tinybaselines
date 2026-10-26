@@ -8,10 +8,31 @@ from unittest.mock import Mock, patch
 
 import torch
 
-from examples.lunar_lander import reference as reference_lander, run_learning
+from examples.lunar_lander import reference as reference_lander, train, run_learning
 
 
 class LearningRunTest(unittest.TestCase):
+    def test_saves_and_evaluates_ppo_checkpoint(self):
+        policy = SimpleNamespace(log_std=train.Tensor.zeros(2), config={}, save=Mock())
+        ctx = SimpleNamespace(ac=policy, ppo=SimpleNamespace(save=Mock()), eval_env=object(), cleanup=Mock(),
+                              rollout_times=[0.0], update_times=[0.0], last_eval_stochastic=205.0)
+        restored = object()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'run'
+            with patch.dict(os.environ), patch.multiple(train, max_epochs=1,
+                    TrainingContext=Mock(return_value=ctx), train_one_epoch=Mock(return_value=True),
+                    evaluate_policy=Mock(return_value=210.0)):
+                with patch.object(train.PPO, 'load', return_value=SimpleNamespace(actor_critic=restored)) as load:
+                    run_learning.run('tinygrad', output)
+                    policy.save.assert_called_once_with(output / 'policy.safetensors')
+                    ctx.ppo.save.assert_called_once_with(output / 'ppo.safetensors')
+                    load.assert_called_once_with(output / 'ppo.safetensors')
+                    train.evaluate_policy.assert_called_once_with(restored, env=ctx.eval_env, deterministic=False)
+            events = [json.loads(line) for line in (output / 'metrics.jsonl').read_text().splitlines()]
+            self.assertEqual(events[-1]['checkpoint'], 'ppo.safetensors')
+            self.assertEqual(events[-1]['policy'], 'policy.safetensors')
+            ctx.cleanup.assert_called_once()
+
     def test_records_failure_and_closes_environments(self):
         policy = SimpleNamespace(log_std=torch.zeros(2), config={})
         ctx = SimpleNamespace(ac=policy, cleanup=Mock())

@@ -10,7 +10,7 @@ source .venv/bin/activate
 pip install -r examples/lunar_lander/requirements.txt
 ```
 
-Train, then save the policy.
+Train, save, and load.
 
 ```python
 from statistics import mean
@@ -27,8 +27,9 @@ ppo = PPO(policy, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95,
 for step in learn(env, ppo, total_timesteps=2_000_000, rollout_steps=20_000):
     print(step.timesteps, step.rollout_seconds, step.update_seconds)
 
-policy.save('policy.safetensors')
-policy = GaussianActorCritic.load('policy.safetensors')
+ppo.save('ppo.safetensors')
+ppo = PPO.load('ppo.safetensors')
+policy = ppo.actor_critic
 observations, _ = env.reset()
 actions, raw_actions = policy.act(observations, deterministic=True)
 env.close()
@@ -49,6 +50,11 @@ actions by default; `deterministic=True` uses clipped policy means.
 `actions` go to the environment; `raw_actions` go into PPO.
 The collector uses Gymnasium vector environments with same-step autoreset.
 For time-limit bootstrapping, the collector reads pre-reset observations from `infos['final_obs']`.
+
+PPO checkpoints contain the policy, observation scale, Adam state, and PPO settings.
+Continue training by passing the loaded PPO to `learn` with a new transition budget.
+Each `learn` call starts fresh episodes and a new transition counter.
+`policy.save(path)` exports a policy for inference.
 
 The full LunarLander trainer, evaluation, and PyTorch reference live in
 `examples/lunar_lander`.

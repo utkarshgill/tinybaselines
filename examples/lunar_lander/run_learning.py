@@ -56,10 +56,16 @@ def run(framework, output):
             seconds_to_stop = time.perf_counter() - started
             policy_path = output / ('policy.safetensors' if framework == 'tinygrad' else 'policy.pt')
             ctx.ac.save(policy_path)
-            restored = trainer.ActorCritic.load(policy_path)
+            checkpoint_path = output / 'ppo.safetensors' if framework == 'tinygrad' else None
+            if checkpoint_path is not None:
+                ctx.ppo.save(checkpoint_path)
+                restored = trainer.PPO.load(checkpoint_path).actor_critic
+            else:
+                restored = trainer.ActorCritic.load(policy_path)
             score = trainer.evaluate_policy(restored, env=ctx.eval_env, deterministic=False)
             record(event='final', steps=(epoch + 1) * trainer.steps_per_epoch, score=score,
-                   seconds_to_stop=seconds_to_stop, stopped_on_threshold=solved, policy=policy_path.name)
+                   seconds_to_stop=seconds_to_stop, stopped_on_threshold=solved, policy=policy_path.name,
+                   checkpoint=checkpoint_path.name if checkpoint_path is not None else None)
         except Exception as error:
             record(event='error', error_type=type(error).__name__, message=str(error), traceback=traceback.format_exc())
             raise
