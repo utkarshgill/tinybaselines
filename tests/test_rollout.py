@@ -9,6 +9,21 @@ import reference_lander
 
 
 class RolloutTest(unittest.TestCase):
+    def test_episode_endings_remain_distinct(self):
+        terminated = np.array([True, False, True, False])
+        truncated = np.array([False, True, True, False])
+        states = np.zeros((4, 8), dtype=np.float32)
+        actions = np.zeros((4, 2), dtype=np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}),
+                              step=lambda actions: (states, np.ones(4), terminated, truncated, {}))
+        for trainer in (lander, reference_lander):
+            with self.subTest(trainer=trainer.__name__):
+                result = trainer.rollout(env, policy, num_steps=4)
+                np.testing.assert_array_equal(result[3][0], terminated)
+                np.testing.assert_array_equal(result[4][0], truncated)
+                self.assertEqual(len(result[-1]), 3)
+
     def test_each_step_is_a_transition(self):
         make = lander.gym.make
         actions = np.zeros((4, 2), dtype=np.float32)
@@ -18,8 +33,9 @@ class RolloutTest(unittest.TestCase):
                 with patch.object(trainer.gym, 'make', side_effect=lambda *a, **kw: make(*a, max_episode_steps=1, **kw)):
                     env = trainer.make_env(4, asynchronous=False)
                 try:
-                    _, _, _, done, _, episodes = trainer.rollout(env, policy, num_steps=8)
-                    np.testing.assert_array_equal(done, np.ones((2, 4)))
+                    _, _, _, terminated, truncated, _, episodes = trainer.rollout(env, policy, num_steps=8)
+                    np.testing.assert_array_equal(terminated, np.zeros((2, 4), bool))
+                    np.testing.assert_array_equal(truncated, np.ones((2, 4), bool))
                     self.assertEqual(len(episodes), 8)
                 finally:
                     env.close()
@@ -36,7 +52,7 @@ class RolloutTest(unittest.TestCase):
                 env = SimpleNamespace(num_envs=4, reset=lambda: (states, {}), step=step)
                 actions = np.zeros((4, 2), dtype=np.float32)
                 policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
-                obs, _, _, _, last_obs, _ = trainer.rollout(env, policy, num_steps=8)
+                obs, _, _, _, _, last_obs, _ = trainer.rollout(env, policy, num_steps=8)
                 np.testing.assert_array_equal(obs[:, 0, 0], [0, 1])
                 np.testing.assert_array_equal(last_obs, np.full((4, 8), 2))
                 states[:] = 99
