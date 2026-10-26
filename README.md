@@ -62,3 +62,14 @@ The full LunarLander trainer, evaluation, and PyTorch reference live in
 ```sh
 python -m examples.lunar_lander.train
 ```
+
+Pendulum uses three observations and one action. Its example rescales policy actions
+from `[-1, 1]` to torque in `[-2, 2]`.
+
+```sh
+pip install -e . -r examples/pendulum/requirements.txt
+DEV=CPU BEAM=0 python -m examples.pendulum.train --output runs/pendulum
+```
+
+The output directory contains the configuration, episode returns, update times,
+and a PPO checkpoint. Initial and final evaluations each use 100 fresh stochastic episodes.
