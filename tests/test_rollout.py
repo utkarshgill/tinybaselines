@@ -62,18 +62,27 @@ class RolloutTest(unittest.TestCase):
                 np.testing.assert_array_equal(next_obs[:, 0, 0], [1, 2])
 
     def test_bootstrap_values(self):
-        cases = (
-            ([[0, 1]], [[2, 3]], [[0, 1]], [10, 20], [9.9, 1]),
-            ([[0], [0]], [[2], [3]], [[0], [0]], [10], [9.45945, 9.9]),
-        )
+        cases = {
+            'termination': ([[0, 1]], [[2, 3]], [[0, 1]], [[0, 0]], [[10, 20]], [9.9, 1]),
+            'rollout_cutoff': ([[0], [0]], [[2], [3]], [[0], [0]], [[0], [0]], [[3], [10]], [9.45945, 9.9]),
+            'time_limit': ([[1], [100]], [[2], [3]], [[0], [1]], [[1], [0]], [[10], [20]], [10.9, 100]),
+            'both_flags': ([[1, 1]], [[2, 2]], [[1, 0]], [[1, 1]], [[10, 10]], [1, 10.9]),
+        }
         for trainer in (lander, reference_lander):
-            for rewards, values, done, last_values, expected in cases:
-                with self.subTest(trainer=trainer.__name__, expected=expected):
+            for name, case in cases.items():
+                rewards, values, terminated, truncated, next_values, expected = case
+                with self.subTest(trainer=trainer.__name__, case=name):
                     ppo = trainer.PPO.__new__(trainer.PPO)
                     ppo.gamma, ppo.lamda = 0.99, 0.95
-                    arrays = [np.asarray(x, dtype=np.float32) for x in (rewards, values, done, last_values)]
+                    arrays = [
+                        np.asarray(rewards, np.float32), np.asarray(values, np.float32),
+                        np.asarray(terminated, bool), np.asarray(truncated, bool),
+                        np.asarray(next_values, np.float32),
+                    ]
                     if trainer is reference_lander:
                         arrays = [trainer.torch.from_numpy(x) for x in arrays]
                     advantages, returns = ppo.compute_advantages(*arrays)
                     np.testing.assert_allclose(returns, expected, rtol=1e-6, atol=1e-6)
-                    np.testing.assert_allclose(advantages, [1, -1], rtol=1e-5, atol=1e-5)
+                    expected_advantages = np.asarray(expected) - np.asarray(values).reshape(-1)
+                    expected_advantages = (expected_advantages - expected_advantages.mean()) / (expected_advantages.std() + 1e-8)
+                    np.testing.assert_allclose(advantages, expected_advantages, rtol=1e-5, atol=1e-5)

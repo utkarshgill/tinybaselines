@@ -143,16 +143,16 @@ class PPO:
         self.eps_clip, self.batch_size = eps_clip, batch_size
         self.vf_coef, self.entropy_coef = vf_coef, entropy_coef
 
-    def compute_advantages(self, rewards, state_values, is_terminals, last_values):
+    def compute_advantages(self, rewards, state_values, terminated, truncated, next_values):
         T, N = rewards.shape
         advantages = np.zeros_like(rewards, dtype=np.float32)
         gae = np.zeros(N, dtype=np.float32)
-        state_values_pad = np.concatenate([state_values, last_values.reshape(1, N)], axis=0)
+        episode_ends = terminated | truncated
         for t in reversed(range(T)):
-            delta = rewards[t] + self.gamma * state_values_pad[t + 1] * (1 - is_terminals[t]) - state_values_pad[t]
-            gae = delta + self.gamma * self.lamda * (1 - is_terminals[t]) * gae
+            delta = rewards[t] + self.gamma * next_values[t] * ~terminated[t] - state_values[t]
+            gae = delta + self.gamma * self.lamda * ~episode_ends[t] * gae
             advantages[t] = gae
-        returns = advantages + state_values_pad[:-1]
+        returns = advantages + state_values
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         return advantages.reshape(-1), returns.reshape(-1)
 
@@ -179,7 +179,7 @@ class PPO:
         clip_grad_norm(self.critic_parameters, 0.5)
         return loss.realize(*self.optimizer.schedule_step())
 
-    def update(self, obs, raw_act, rew, done, last_obs):
+    def update(self, obs, raw_act, rew, terminated, truncated, next_obs):
         T, N = rew.shape
         obs_np = obs.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE
         raw_act_np = raw_act.reshape(-1, action_dim).astype(np.float32)
@@ -189,9 +189,9 @@ class PPO:
         old_mean, old_log_std, old_value = self.actor_critic(obs_flat)
         old_logprobs_np = normal_log_prob(old_mean, old_log_std, raw_act_flat).numpy()
         old_values_np = old_value.numpy().reshape(T, N)
-        last_obs_t = Tensor(last_obs.astype(np.float32) * OBS_SCALE, device=device)
-        last_values_np = self.actor_critic.critic(last_obs_t).numpy().reshape(N)
-        advantages_np, returns_np = self.compute_advantages(rew, old_values_np, done, last_values_np)
+        next_obs_t = Tensor(next_obs.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE, device=device)
+        next_values_np = self.actor_critic.critic(next_obs_t).numpy().reshape(T, N)
+        advantages_np, returns_np = self.compute_advantages(rew, old_values_np, terminated, truncated, next_values_np)
 
         old_logprobs = Tensor(old_logprobs_np, device=device)
         advantages = Tensor(advantages_np, device=device)
@@ -289,7 +289,7 @@ def train_one_epoch(epoch, ctx):
     ctx.rollout_times.append(t1 - t0)
 
     t0 = time.perf_counter()
-    ctx.ppo.update(obs, raw_act, rew, terminated | truncated, next_obs[-1])
+    ctx.ppo.update(obs, raw_act, rew, terminated, truncated, next_obs)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
 

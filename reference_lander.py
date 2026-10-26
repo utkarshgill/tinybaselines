@@ -109,15 +109,15 @@ class PPO:
         self.gamma, self.lamda, self.K_epochs = gamma, lamda, K_epochs
         self.eps_clip, self.batch_size, self.vf_coef, self.entropy_coef = eps_clip, batch_size, vf_coef, entropy_coef
 
-    def compute_advantages(self, rewards, state_values, is_terminals, last_values):
+    def compute_advantages(self, rewards, state_values, terminated, truncated, next_values):
         T, N = rewards.shape
         advantages, gae = torch.zeros_like(rewards), torch.zeros(N, device=rewards.device)
-        state_values_pad = torch.cat([state_values, last_values.reshape(1, N)], dim=0)
+        episode_ends = terminated | truncated
         for t in reversed(range(T)):
-            delta = rewards[t] + self.gamma * state_values_pad[t + 1] * (1 - is_terminals[t]) - state_values_pad[t]
-            gae = delta + self.gamma * self.lamda * (1 - is_terminals[t]) * gae
+            delta = rewards[t] + self.gamma * next_values[t] * ~terminated[t] - state_values[t]
+            gae = delta + self.gamma * self.lamda * ~episode_ends[t] * gae
             advantages[t] = gae
-        returns = advantages + state_values_pad[:-1]
+        returns = advantages + state_values
         advantages = (advantages - advantages.mean()) / (advantages.std(correction=0) + 1e-8)
         return advantages.reshape(-1), returns.reshape(-1)
     
@@ -132,12 +132,13 @@ class PPO:
         
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
     
-    def update(self, obs, raw_act, rew, done, last_obs):
+    def update(self, obs, raw_act, rew, terminated, truncated, next_obs):
         T, N = rew.shape
         obs_flat = torch.from_numpy(obs.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
         raw_act_flat = torch.from_numpy(raw_act.reshape(-1, action_dim)).to(device=device, dtype=torch.float32)
         rew_t = torch.from_numpy(rew).to(device=device, dtype=torch.float32)
-        done_t = torch.from_numpy(done).to(device=device, dtype=torch.float32)
+        terminated_t = torch.from_numpy(terminated).to(device=device)
+        truncated_t = torch.from_numpy(truncated).to(device=device)
         obs_flat = obs_flat * OBS_SCALE_T
         
         with torch.no_grad():
@@ -145,9 +146,9 @@ class PPO:
             dist = torch.distributions.Normal(mean, std)
             old_logprobs = dist.log_prob(raw_act_flat).sum(-1)
             old_values = val.squeeze(-1).view(T, N)
-            last_obs_t = torch.as_tensor(last_obs, device=device, dtype=torch.float32) * OBS_SCALE_T
-            last_values = self.actor_critic.critic(last_obs_t).squeeze(-1)
-            advantages, returns = self.compute_advantages(rew_t, old_values, done_t, last_values)
+            next_obs_t = torch.as_tensor(next_obs.reshape(-1, state_dim), device=device, dtype=torch.float32) * OBS_SCALE_T
+            next_values = self.actor_critic.critic(next_obs_t).squeeze(-1).view(T, N)
+            advantages, returns = self.compute_advantages(rew_t, old_values, terminated_t, truncated_t, next_values)
         
         num_samples = obs_flat.size(0)
         for _ in range(self.K_epochs):
@@ -237,7 +238,7 @@ def train_one_epoch(epoch, ctx):
     ctx.rollout_times.append(t1 - t0)
     
     t0 = time.perf_counter()
-    ctx.ppo.update(obs, raw_act, rew, terminated | truncated, next_obs[-1])
+    ctx.ppo.update(obs, raw_act, rew, terminated, truncated, next_obs)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
     
