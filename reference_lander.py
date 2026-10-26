@@ -131,7 +131,7 @@ class PPO:
         
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
     
-    def update(self, obs, raw_act, rew, done):
+    def update(self, obs, raw_act, rew, done, last_obs):
         T, N = rew.shape
         obs_flat = torch.from_numpy(obs.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
         raw_act_flat = torch.from_numpy(raw_act.reshape(-1, action_dim)).to(device=device, dtype=torch.float32)
@@ -193,7 +193,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         if (collect and t >= T) or (num_episodes and len(ep_returns) >= num_episodes):
             break
     
-    return (obs, raw_act, rew, done, ep_returns) if collect else ep_returns
+    return (obs, raw_act, rew, done, states.copy(), ep_returns) if collect else ep_returns
 
 class TrainingContext:
     def __init__(self):
@@ -224,12 +224,12 @@ class TrainingContext:
 
 def train_one_epoch(epoch, ctx):
     t0 = time.perf_counter()
-    obs, raw_act, rew, done, ep_rets = rollout(ctx.env, ctx.ac, num_steps=steps_per_epoch)
+    obs, raw_act, rew, done, last_obs, ep_rets = rollout(ctx.env, ctx.ac, num_steps=steps_per_epoch)
     t1 = time.perf_counter()
     ctx.rollout_times.append(t1 - t0)
     
     t0 = time.perf_counter()
-    ctx.ppo.update(obs, raw_act, rew, done)
+    ctx.ppo.update(obs, raw_act, rew, done, last_obs)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
     
