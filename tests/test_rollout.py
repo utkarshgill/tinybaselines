@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -9,6 +9,33 @@ import reference_lander
 
 
 class RolloutTest(unittest.TestCase):
+    def test_episode_crosses_rollout_boundary(self):
+        actions = np.zeros((4, 2), dtype=np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        for trainer in (lander, reference_lander):
+            with self.subTest(trainer=trainer.__name__):
+                observations = np.zeros((4, 8), dtype=np.float32)
+
+                def step(actions):
+                    observations[:] += 1
+                    ended = observations[:, 0] == 3
+                    final_obs = observations.copy()
+                    observations[ended] = 0
+                    return observations, np.ones(4), ended, np.zeros(4, bool), {'final_obs': final_obs}
+
+                env = SimpleNamespace(num_envs=4, reset=Mock(return_value=(observations, {})), step=step)
+                state = trainer.RolloutState(env.reset()[0], np.zeros(4))
+                first = trainer.rollout(env, policy, num_steps=8, state=state)
+                self.assertEqual(first[-1], [])
+                np.testing.assert_array_equal(state.episode_returns, np.full(4, 2))
+                second = trainer.rollout(env, policy, num_steps=8, state=state)
+                env.reset.assert_called_once()
+                np.testing.assert_array_equal(first[0][:, 0, 0], [0, 1])
+                np.testing.assert_array_equal(second[0][:, 0, 0], [2, 0])
+                np.testing.assert_array_equal(second[-1], np.full(4, 3))
+                np.testing.assert_array_equal(state.observations, np.ones((4, 8)))
+                np.testing.assert_array_equal(state.episode_returns, np.ones(4))
+
     def test_episode_endings_remain_distinct(self):
         terminated = np.array([True, False, True, False])
         truncated = np.array([False, True, True, False])

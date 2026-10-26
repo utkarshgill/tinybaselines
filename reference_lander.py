@@ -9,6 +9,7 @@ import os
 import warnings
 from tqdm import trange
 from lunar_lander import ENV_NAME, OBS_SCALE
+from rollout import RolloutState
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
@@ -164,12 +165,14 @@ class PPO:
                 self.pi_optimizer.step()
                 self.vf_optimizer.step()
 
-def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=False):
+def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=False, state=None):
     assert (num_steps is None) != (num_episodes is None), "Specify exactly one: num_steps or num_episodes"
     
     N = env.num_envs
-    states, _ = env.reset()
-    ep_returns, ep_rets = [], np.zeros(N)
+    if state is None:
+        state = RolloutState(env.reset()[0], np.zeros(N))
+    states = state.observations
+    ep_returns, ep_rets = [], state.episode_returns
     
     collect = num_steps is not None
     if collect:
@@ -202,6 +205,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         if (collect and t >= T) or (num_episodes and len(ep_returns) >= num_episodes):
             break
     
+    state.observations = states
     return (obs, raw_act, rew, terminations, truncations, next_obs, ep_returns) if collect else ep_returns
 
 class TrainingContext:
