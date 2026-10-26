@@ -69,6 +69,8 @@ def track_episode_returns(done_mask, ep_returns, ep_rets, remaining=None):
 class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
         super(ActorCritic, self).__init__()
+        self.config = dict(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim,
+                           actor_layers=actor_layers, critic_layers=critic_layers)
         self.register_buffer('observation_scale', torch.from_numpy(OBS_SCALE.copy()))
         
         actor = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
@@ -107,6 +109,17 @@ class ActorCritic(nn.Module):
         sample = torch.distributions.Normal(action_mean, action_std).sample()
         action = sample.clamp(-1, 1)
         return action.cpu().numpy(), sample.cpu().numpy()
+
+    def save(self, path):
+        torch.save({'config': self.config, 'state_dict': self.state_dict()}, path)
+
+    @classmethod
+    def load(cls, path):
+        checkpoint = torch.load(path, map_location=device, weights_only=True)
+        model = cls(**checkpoint['config']).to(device)
+        model.load_state_dict(checkpoint['state_dict'])
+        return model
+
 
 class PPO:
     def __init__(self, actor_critic, pi_lr, vf_lr, gamma, lamda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef):
