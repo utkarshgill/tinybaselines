@@ -1,0 +1,15 @@
+{
+  "hardware": "Apple M4",
+  "completed_runs_per_backend": 1,
+  "final_evaluation": "100 fresh stochastic episodes after policy save/load.",
+  "tinygrad_cache_directory_reused": true,
+  "seconds_to_stop": "Runner start through training stop, including backend import and periodic evaluation.",
+  "aborted_attempt": {
+    "framework": "tinygrad",
+    "source_commit": "69108d911b4a6317c119183fc739f0fbe8e7e1d7",
+    "status": "interrupted",
+    "valid_learning_comparison": false,
+    "reason": "Cached action inference did not track optimizer updates.",
+    "nonfinite_standard_deviation_observed": true
+  }
+}

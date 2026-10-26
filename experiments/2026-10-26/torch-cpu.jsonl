@@ -1,0 +1,8 @@
+{"seconds": 0.9187341670040041, "event": "config", "framework": "torch", "environment": "LunarLanderContinuous-v3", "source_commit": "69108d911b4a6317c119183fc739f0fbe8e7e1d7", "device": "cpu", "dtype": "torch.float32", "platform": "macOS-27.0.1-arm64-arm-64bit", "python": "3.11.14", "versions": {"gymnasium": "1.1.1", "numpy": "2.4.6", "torch": "2.8.0"}, "backend_source": {}, "settings": {"num_envs": 4, "steps_per_epoch": 20000, "max_epochs": 100, "batch_size": 10000, "K_epochs": 20, "pi_lr": 0.001, "vf_lr": 0.001, "gamma": 0.99, "gae_lambda": 0.95, "eps_clip": 0.2, "vf_coef": 1.0, "entropy_coef": 0.001, "eval_interval": 5, "eval_episodes": 100, "solved_threshold": 200}, "architecture": {"state_dim": 8, "action_dim": 2, "hidden_dim": 128, "actor_layers": 4, "critic_layers": 4}, "beam": "1", "torch_threads": 4}
+{"seconds": 2.7334497920019203, "event": "evaluation", "steps": 20000, "score": -149.30685894772566}
+{"seconds": 9.771433875001094, "event": "evaluation", "steps": 120000, "score": -60.25241454789962}
+{"seconds": 18.104541167005664, "event": "evaluation", "steps": 220000, "score": -14.632755548446074}
+{"seconds": 27.99449587500567, "event": "evaluation", "steps": 320000, "score": 101.32378661902584}
+{"seconds": 37.85277720900194, "event": "evaluation", "steps": 420000, "score": 148.61901539907734}
+{"seconds": 45.6031485420026, "event": "evaluation", "steps": 520000, "score": 212.5747368494605}
+{"seconds": 47.633975791999546, "event": "final", "steps": 520000, "score": 233.56567105611305, "seconds_to_stop": 45.603205709005124, "stopped_on_threshold": true, "policy": "policy.pt"}
