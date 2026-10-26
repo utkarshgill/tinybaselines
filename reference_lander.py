@@ -42,6 +42,7 @@ def make_env(n, render=False, asynchronous=True):
     env_class = gym.vector.AsyncVectorEnv if asynchronous else gym.vector.SyncVectorEnv
     return env_class(
         [lambda: gym.make(ENV_NAME, render_mode=render_mode) for _ in range(n)],
+        autoreset_mode=gym.vector.AutoresetMode.SAME_STEP,
     )
 
 def update_plot(ax, returns, threshold):

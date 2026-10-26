@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -8,6 +9,21 @@ import reference_lander
 
 
 class RolloutTest(unittest.TestCase):
+    def test_each_step_is_a_transition(self):
+        make = lander.gym.make
+        actions = np.zeros((4, 2), dtype=np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        for trainer in (lander, reference_lander):
+            with self.subTest(trainer=trainer.__name__):
+                with patch.object(trainer.gym, 'make', side_effect=lambda *a, **kw: make(*a, max_episode_steps=1, **kw)):
+                    env = trainer.make_env(4, asynchronous=False)
+                try:
+                    _, _, _, done, _, episodes = trainer.rollout(env, policy, num_steps=8)
+                    np.testing.assert_array_equal(done, np.ones((2, 4)))
+                    self.assertEqual(len(episodes), 8)
+                finally:
+                    env.close()
+
     def test_final_observation_is_a_snapshot(self):
         for trainer in (lander, reference_lander):
             with self.subTest(trainer=trainer.__name__):
