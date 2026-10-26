@@ -183,19 +183,21 @@ class PPO:
         clip_grad_norm(self.critic_parameters, 0.5)
         return loss.realize(*self.optimizer.schedule_step())
 
-    def update(self, obs, raw_act, rew, terminated, truncated, next_obs):
-        T, N = rew.shape
-        obs_np = obs.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE
-        raw_act_np = raw_act.reshape(-1, action_dim).astype(np.float32)
+    def update(self, batch):
+        T, N = batch.rewards.shape
+        obs_np = batch.observations.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE
+        raw_act_np = batch.raw_actions.reshape(-1, action_dim).astype(np.float32)
 
         obs_flat = Tensor(obs_np, device=device)
         raw_act_flat = Tensor(raw_act_np, device=device)
         old_mean, old_log_std, old_value = self.actor_critic(obs_flat)
         old_logprobs_np = normal_log_prob(old_mean, old_log_std, raw_act_flat).numpy()
         old_values_np = old_value.numpy().reshape(T, N)
-        next_obs_t = Tensor(next_obs.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE, device=device)
+        next_obs_t = Tensor(batch.next_observations.reshape(-1, state_dim).astype(np.float32) * OBS_SCALE, device=device)
         next_values_np = self.actor_critic.critic(next_obs_t).numpy().reshape(T, N)
-        advantages_np, returns_np = self.compute_advantages(rew, old_values_np, terminated, truncated, next_values_np)
+        advantages_np, returns_np = self.compute_advantages(
+            batch.rewards, old_values_np, batch.terminated, batch.truncated, next_values_np
+        )
 
         old_logprobs = Tensor(old_logprobs_np, device=device)
         advantages = Tensor(advantages_np, device=device)
@@ -302,7 +304,7 @@ def train_one_epoch(epoch, ctx):
     ctx.rollout_times.append(t1 - t0)
 
     t0 = time.perf_counter()
-    ctx.ppo.update(*batch)
+    ctx.ppo.update(batch)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
 

@@ -68,16 +68,16 @@ class RolloutTest(unittest.TestCase):
 
                 env = SimpleNamespace(num_envs=4, reset=Mock(return_value=(observations, {})), step=step)
                 state = trainer.RolloutState(env.reset()[0], np.zeros(4))
-                first = trainer.rollout(env, policy, num_steps=8, state=state)
-                self.assertEqual(first[-1], [])
+                first, episodes = trainer.rollout(env, policy, num_steps=8, state=state)
+                self.assertEqual(episodes, [])
                 np.testing.assert_array_equal(state.episode_returns, np.full(4, 2))
                 ctx = SimpleNamespace(env=env, ac=policy, rollout_state=state, ppo=Mock(), pbar=Mock(),
                                       rollout_times=[], update_times=[], all_episode_returns=[], last_eval_stochastic=-np.inf)
                 with patch.object(trainer, 'steps_per_epoch', 8):
                     trainer.train_one_epoch(1, ctx)
                 env.reset.assert_called_once()
-                np.testing.assert_array_equal(first[0].observations[:, 0, 0], [0, 1])
-                np.testing.assert_array_equal(ctx.ppo.update.call_args.args[0][:, 0, 0], [2, 0])
+                np.testing.assert_array_equal(first.observations[:, 0, 0], [0, 1])
+                np.testing.assert_array_equal(ctx.ppo.update.call_args.args[0].observations[:, 0, 0], [2, 0])
                 np.testing.assert_array_equal(ctx.all_episode_returns, np.full(4, 3))
                 np.testing.assert_array_equal(state.observations, np.ones((4, 8)))
                 np.testing.assert_array_equal(state.episode_returns, np.ones(4))

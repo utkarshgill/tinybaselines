@@ -147,13 +147,13 @@ class PPO:
         self.vf_optimizer.step()
         return loss.detach()
 
-    def update(self, obs, raw_act, rew, terminated, truncated, next_obs):
-        T, N = rew.shape
-        obs_flat = torch.from_numpy(obs.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
-        raw_act_flat = torch.from_numpy(raw_act.reshape(-1, action_dim)).to(device=device, dtype=torch.float32)
-        rew_t = torch.from_numpy(rew).to(device=device, dtype=torch.float32)
-        terminated_t = torch.from_numpy(terminated).to(device=device)
-        truncated_t = torch.from_numpy(truncated).to(device=device)
+    def update(self, batch):
+        T, N = batch.rewards.shape
+        obs_flat = torch.from_numpy(batch.observations.reshape(-1, state_dim)).to(device=device, dtype=torch.float32)
+        raw_act_flat = torch.from_numpy(batch.raw_actions.reshape(-1, action_dim)).to(device=device, dtype=torch.float32)
+        rew_t = torch.from_numpy(batch.rewards).to(device=device, dtype=torch.float32)
+        terminated_t = torch.from_numpy(batch.terminated).to(device=device)
+        truncated_t = torch.from_numpy(batch.truncated).to(device=device)
         obs_flat = obs_flat * OBS_SCALE_T
         
         with torch.no_grad():
@@ -161,7 +161,7 @@ class PPO:
             dist = torch.distributions.Normal(mean, std)
             old_logprobs = dist.log_prob(raw_act_flat).sum(-1)
             old_values = val.squeeze(-1).view(T, N)
-            next_obs_t = torch.as_tensor(next_obs.reshape(-1, state_dim), device=device, dtype=torch.float32) * OBS_SCALE_T
+            next_obs_t = torch.as_tensor(batch.next_observations.reshape(-1, state_dim), device=device, dtype=torch.float32) * OBS_SCALE_T
             next_values = self.actor_critic.critic(next_obs_t).squeeze(-1).view(T, N)
             advantages, returns = self.compute_advantages(rew_t, old_values, terminated_t, truncated_t, next_values)
         
@@ -255,7 +255,7 @@ def train_one_epoch(epoch, ctx):
     ctx.rollout_times.append(t1 - t0)
     
     t0 = time.perf_counter()
-    ctx.ppo.update(*batch)
+    ctx.ppo.update(batch)
     t1 = time.perf_counter()
     ctx.update_times.append(t1 - t0)
     
