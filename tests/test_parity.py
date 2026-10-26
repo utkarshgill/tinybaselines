@@ -8,6 +8,21 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_policy_preprocessing(self):
+        observations = np.ones((4, 8), dtype=np.float64)
+        scale = np.array([10, 6.666, 5, 7.5, 1, 2.5, 1, 1], dtype=np.float32)
+        for trainer in (lander, reference_lander):
+            with self.subTest(trainer=trainer.__name__):
+                model = trainer.ActorCritic(8, 2, 8, 1, 1)
+                scaled = model.preprocess(observations)
+                actual = scaled.numpy()
+                self.assertEqual(actual.dtype, np.float32)
+                np.testing.assert_array_equal(actual, np.broadcast_to(scale, observations.shape))
+                expected_mean = model.actor(scaled).detach().numpy()
+                _, mean = model.act(observations, deterministic=True)
+                np.testing.assert_allclose(mean, expected_mean, rtol=1e-5, atol=1e-6)
+                np.testing.assert_array_equal(observations, np.ones((4, 8)))
+
     def test_train_steps_are_independent(self):
         settings = dict(pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
                         eps_clip=0.2, batch_size=8, vf_coef=1.0, entropy_coef=0.001)

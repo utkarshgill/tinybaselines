@@ -93,9 +93,12 @@ class ActorCritic(nn.Module):
         value = self.critic(state)
         return action_mean, action_std, value
     
+    def preprocess(self, observations):
+        return torch.from_numpy(observations).to(device=device, dtype=torch.float32) * OBS_SCALE_T
+
     @torch.inference_mode()
     def act(self, state, deterministic=False):
-        state_tensor = torch.from_numpy(state).to(device=device, dtype=torch.float32) * OBS_SCALE_T
+        state_tensor = self.preprocess(state)
         action_mean = self.actor(state_tensor)
         action_std = self.log_std.clamp(-5, 2).exp().expand_as(action_mean)
         if deterministic:

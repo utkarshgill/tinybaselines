@@ -102,8 +102,11 @@ class ActorCritic:
         value = self.critic(state)
         return action_mean, log_std, value
 
+    def preprocess(self, observations):
+        return Tensor(observations.astype(np.float32) * OBS_SCALE, device=device)
+
     def act(self, state, deterministic=False):
-        state_tensor = Tensor(state.astype(np.float32) * OBS_SCALE, device=device)
+        state_tensor = self.preprocess(state)
         if self.jit_shape != state_tensor.shape:
             self.actor_jit.reset()
             self.jit_shape = state_tensor.shape
