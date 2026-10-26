@@ -18,7 +18,7 @@ class CheckpointTest(unittest.TestCase):
                 if trainer is lander:
                     model.log_std.assign(lander.Tensor([-0.2, 0.4])).realize()
                     model.observation_scale.assign(model.observation_scale * 2).realize()
-                    model.refresh_action_std()
+                    model.refresh_inference()
                 else:
                     with torch.no_grad():
                         model.log_std.copy_(torch.tensor([-0.2, 0.4]))

@@ -9,6 +9,33 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_inference_tracks_optimization(self):
+        random = np.random.default_rng(0)
+        batch = lander.RolloutBatch(
+            random.standard_normal((2, 4, 8), dtype=np.float32), random.standard_normal((2, 4, 2), dtype=np.float32),
+            random.standard_normal((2, 4), dtype=np.float32), np.zeros((2, 4), bool), np.zeros((2, 4), bool),
+            random.standard_normal((2, 4, 8), dtype=np.float32),
+        )
+        observations = np.ones((4, 8), dtype=np.float32)
+        for operation in ('update', 'train_step'):
+            with self.subTest(operation=operation):
+                model = lander.ActorCritic(8, 2, 128, 4, 4)
+                ppo = lander.PPO(model, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                                 eps_clip=0.2, batch_size=4, vf_coef=1.0, entropy_coef=0.001)
+                for _ in range(3):
+                    model.act(observations, deterministic=True)
+                for _ in range(3):
+                    if operation == 'update':
+                        ppo.update(batch)
+                    else:
+                        inputs = [x.contiguous().realize() for x in ppo.prepare(batch)]
+                        ppo.train_step(*inputs)
+                    for _ in range(3):
+                        _, actual = model.act(observations, deterministic=True)
+                    expected = model.actor(model.preprocess(observations)).numpy()
+                    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-6)
+                    self.assertTrue(np.isfinite(model.log_std.numpy()).all())
+
     def test_policy_preprocessing(self):
         observations = np.ones((4, 8), dtype=np.float64)
         scale = np.array([10, 6.666, 5, 7.5, 1, 2.5, 1, 1], dtype=np.float32)
@@ -56,7 +83,7 @@ class ParityTest(unittest.TestCase):
                 for _ in range(3):
                     ppo.train_step(*batch)
                 self.assertFalse(np.array_equal(before, bias.numpy()))
-                self.assertIsNotNone(ppo.train_step.captured)
+                self.assertIsNotNone(ppo._train_step.captured)
                 for other, snapshot in trained:
                     np.testing.assert_array_equal(other.numpy(), snapshot)
                 trained.append((bias, bias.numpy().copy()))
