@@ -17,7 +17,7 @@ from rollout import RolloutBatch, RolloutState
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
 
 state_dim, action_dim = 8, 2
-num_envs = int(os.getenv('NUM_ENVS', 100))
+num_envs = int(os.getenv('NUM_ENVS', 4))
 
 max_epochs, steps_per_epoch = 100, 20_000
 log_interval, eval_interval = 5, 5
