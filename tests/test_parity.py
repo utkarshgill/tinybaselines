@@ -8,6 +8,21 @@ import reference_lander
 
 
 class ParityTest(unittest.TestCase):
+    def test_gradient_clipping(self):
+        for scale in (1.0, 0.01, 0.0):
+            with self.subTest(scale=scale):
+                tiny_params = [lander.Tensor.zeros(2).is_param_() for _ in range(3)]
+                torch_params = [torch.nn.Parameter(torch.zeros(2)) for _ in range(3)]
+                for tiny, reference, values in zip(tiny_params, torch_params, ([3, 4], [0, 12])):
+                    gradient = np.asarray(values, np.float32) * scale
+                    tiny.grad = lander.Tensor(gradient)
+                    reference.grad = torch.from_numpy(gradient.copy())
+                lander.clip_grad_norm(tiny_params, 0.5)
+                torch.nn.utils.clip_grad_norm_(torch_params, 0.5)
+                for tiny, reference in zip(tiny_params[:2], torch_params[:2]):
+                    np.testing.assert_allclose(tiny.grad.numpy(), reference.grad.numpy(), rtol=1e-5, atol=1e-6)
+                self.assertIsNone(tiny_params[-1].grad)
+
     def test_ppo_loss_and_gradients(self):
         architecture = dict(state_dim=8, action_dim=2, hidden_dim=128, actor_layers=4, critic_layers=4)
         tiny_model = lander.ActorCritic(**architecture)
