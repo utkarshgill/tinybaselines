@@ -33,7 +33,6 @@ RENDER_EPISODES = int(os.getenv('RENDER_EPISODES', '3'))
 METAL = bool(int(os.getenv('METAL', '0')))
 
 device = torch.device('mps' if METAL and torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
-OBS_SCALE_T = torch.tensor(OBS_SCALE, dtype=torch.float32, device=device)
 
 if PLOT:
     import matplotlib.pyplot as plt
@@ -70,6 +69,7 @@ def track_episode_returns(done_mask, ep_returns, ep_rets, remaining=None):
 class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
         super(ActorCritic, self).__init__()
+        self.register_buffer('observation_scale', torch.from_numpy(OBS_SCALE.copy()))
         
         actor = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
         for _ in range(actor_layers - 1):
@@ -94,7 +94,7 @@ class ActorCritic(nn.Module):
         return action_mean, action_std, value
     
     def preprocess(self, observations):
-        return torch.from_numpy(observations).to(device=device, dtype=torch.float32) * OBS_SCALE_T
+        return torch.as_tensor(observations, device=self.observation_scale.device, dtype=torch.float32) * self.observation_scale
 
     @torch.inference_mode()
     def act(self, state, deterministic=False):

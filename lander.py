@@ -92,6 +92,7 @@ class ActorCritic:
         self.actor.layers[-1].weight.assign(self.actor.layers[-1].weight * 0.01).realize()
         self.actor.layers[-1].bias.assign(Tensor.zeros_like(self.actor.layers[-1].bias)).realize()
         self.log_std = Tensor.full((action_dim,), -0.7, device=device).realize()
+        self.observation_scale = Tensor(OBS_SCALE.copy(), device=device).is_param_(False).realize()
         self.action_std = np.exp(self.log_std.numpy())
         self.jit_shape = None
         self.actor_jit = TinyJit(lambda state: self.actor(state).realize())
@@ -103,7 +104,7 @@ class ActorCritic:
         return action_mean, log_std, value
 
     def preprocess(self, observations):
-        return Tensor(observations.astype(np.float32) * OBS_SCALE, device=device)
+        return Tensor(observations.astype(np.float32), device=self.observation_scale.device) * self.observation_scale
 
     def act(self, state, deterministic=False):
         state_tensor = self.preprocess(state)
