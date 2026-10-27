@@ -74,6 +74,9 @@ DEV=CPU BEAM=0 python -m examples.pendulum.train --output runs/pendulum
 The output directory contains the configuration, episode returns, update times,
 and a PPO checkpoint. Initial and final evaluations each use 100 fresh stochastic episodes.
 
-In one four-environment CPU run, mean return improved from -1,221.9 to -141.4
-after 200,704 transitions. The final evaluation used the reloaded checkpoint.
-[Run record](examples/pendulum/results/cpu.jsonl).
+Three independent four-environment CPU runs reached mean returns of -141.4, -162.2,
+and -150.8 after 200,704 transitions each. Each final evaluation used the reloaded checkpoint.
+Our acceptance cutoff is -200 over 100 fresh stochastic episodes per run; all three passed.
+Gymnasium defines no solved threshold for Pendulum. We chose this cutoff after the first run.
+Run records: [1](examples/pendulum/results/cpu.jsonl),
+[2](examples/pendulum/results/cpu-2.jsonl), [3](examples/pendulum/results/cpu-3.jsonl).
