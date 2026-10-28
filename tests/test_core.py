@@ -3,6 +3,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -56,6 +57,20 @@ class CoreTest(unittest.TestCase):
                             'import sys; import tinybaselines; '
                             'assert not {"examples", "gymnasium", "matplotlib", "torch", "tqdm"}.intersection(sys.modules)'],
                            cwd=directory, check=True)
+
+    def test_partial_minibatches(self):
+        policy = GaussianActorCritic(3, 1, 4, 1, 1)
+        observations = np.linspace(-0.5, 0.5, 36, dtype=np.float32).reshape(3, 4, 3)
+        batch = RolloutBatch(observations, np.zeros((3, 4, 1), np.float32), np.ones((3, 4), np.float32),
+                             np.zeros((3, 4), bool), np.zeros((3, 4), bool), observations + 0.1)
+        ppo = PPO(policy, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=2,
+                  eps_clip=0.2, batch_size=8, vf_coef=1.0, entropy_coef=0.001)
+        with patch.object(ppo, 'train_step', wraps=ppo.train_step) as step:
+            for _ in range(3):
+                ppo.update(batch)
+        self.assertEqual([call.args[0].shape[0] for call in step.call_args_list], [8, 4] * 6)
+        for tensor in ppo.state_dict().values():
+            self.assertTrue(np.isfinite(tensor.numpy()).all())
 
     def test_policy_and_ppo_use_batch_dimensions(self):
         policy = GaussianActorCritic(3, 1, 4, 1, 1)

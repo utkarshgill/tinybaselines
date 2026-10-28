@@ -88,7 +88,7 @@ class ParityTest(unittest.TestCase):
                 for _ in range(3):
                     ppo.train_step(*batch)
                 self.assertFalse(np.array_equal(before, bias.numpy()))
-                self.assertIsNotNone(ppo._train_step.captured)
+                self.assertIsNotNone(ppo._train_steps[8].captured)
                 for other, snapshot in trained:
                     np.testing.assert_array_equal(other.numpy(), snapshot)
                 trained.append((bias, bias.numpy().copy()))
@@ -184,12 +184,12 @@ class ParityTest(unittest.TestCase):
         for index, (tiny, reference) in enumerate(zip(tiny_params, torch_params)):
             with self.subTest(parameter=index):
                 np.testing.assert_allclose(tiny.grad.numpy(), reference.grad.numpy(), rtol=1e-5, atol=1e-6)
-        for step in range(4):
+        for step, size in enumerate([8, 4] * 3):
             returns = batch[-1] + np.float32(step * 0.1)
             tiny_batch[-1].assign(lander.Tensor(returns)).realize()
             torch_batch[-1].copy_(torch.from_numpy(returns))
-            actual = tiny_ppo.train_step(*tiny_batch)
-            expected = torch_ppo.train_step(*torch_batch)
+            actual = tiny_ppo.train_step(*[x[:size].contiguous().realize() for x in tiny_batch])
+            expected = torch_ppo.train_step(*[x[:size] for x in torch_batch])
             np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-6)
             for index, (tiny, reference) in enumerate(zip(tiny_params, torch_params)):
                 with self.subTest(step=step, parameter=index):

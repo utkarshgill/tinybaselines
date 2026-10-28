@@ -39,7 +39,7 @@ class PPO:
         self.gamma, self.lamda, self.K_epochs = gamma, lamda, K_epochs
         self.eps_clip, self.batch_size = eps_clip, batch_size
         self.vf_coef, self.entropy_coef = vf_coef, entropy_coef
-        self._train_step = TinyJit(self._train_step)
+        self._train_steps = {}
 
     @property
     def config(self):
@@ -100,7 +100,10 @@ class PPO:
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
 
     def train_step(self, batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns):
-        loss = self._train_step(batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns)
+        size = batch_states.shape[0]
+        if size not in self._train_steps:
+            self._train_steps[size] = TinyJit(self._train_step)
+        loss = self._train_steps[size](batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns)
         self.actor_critic.refresh_inference()
         return loss
 

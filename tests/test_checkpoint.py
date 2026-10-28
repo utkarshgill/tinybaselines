@@ -54,7 +54,7 @@ class CheckpointTest(unittest.TestCase):
                     restored = PPO.load(path)
                 self.assertEqual(restored.config, ppo.config)
                 self.assertEqual(restored.actor_critic.config, ppo.actor_critic.config)
-                self.assertIsNone(restored._train_step.captured)
+                self.assertEqual(restored._train_steps, {})
                 self.assertIsNone(restored.actor_critic.actor_jit.captured)
                 self.assertEqual(restored.state_dict().keys(), ppo.state_dict().keys())
                 for name, tensor in ppo.state_dict().items():
