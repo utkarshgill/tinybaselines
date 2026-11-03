@@ -12,7 +12,7 @@ from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
 from .env import CoordinateSquaredVectorEnv, SquaredVectorEnv
 
 
-def run(library, output, total_timesteps, observations='board'):
+def run(library, output, total_timesteps, observations='absolute'):
     output.mkdir(parents=True, exist_ok=False)
     def make_env():
         if observations == 'board':
@@ -61,6 +61,6 @@ if __name__ == '__main__':
     parser.add_argument('library', type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--timesteps', type=int, default=204_800)
-    parser.add_argument('--observations', choices=('board', 'absolute', 'relative'), default='board')
+    parser.add_argument('--observations', choices=('board', 'absolute', 'relative'), default='absolute')
     args = parser.parse_args()
     run(args.library, args.output, args.timesteps, args.observations)

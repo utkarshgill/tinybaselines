@@ -41,7 +41,12 @@ DEV=CPU BEAM=0 python -m examples.puffer.train "$puffer_smoke/libsquared.dylib" 
 The run saves `ppo.safetensors` and records goals over 100 sampled episodes
 before training and after checkpoint reload.
 
-Add `--observations absolute` to use the centered agent and target coordinates,
-or `--observations relative` to replace the target coordinates with the signed
-offset from the agent. Both modes divide all four inputs by 5. Use the same
-observation mode when evaluating a saved policy.
+The default observation is the centered agent and target coordinates, divided by
+5. Use `--observations board` for the flat grid or `--observations relative` for
+the agent coordinates and signed target offset. Use the same observation mode
+when evaluating a saved policy.
+
+At the same budget, three runs per mode reached 56/300 goals with the board,
+299/300 with absolute coordinates, and 296/300 with relative coordinates. Each
+score uses 100 fresh sampled episodes per reloaded checkpoint.
+[Settings and episode returns](results/observations.jsonl).
