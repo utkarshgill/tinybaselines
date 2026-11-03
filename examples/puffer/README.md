@@ -30,3 +30,13 @@ clang -O2 -dynamiclib -I"$puffer_smoke/pufferlib" -I"$puffer_smoke/pufferlib/src
   -o "$puffer_smoke/libsquared.dylib"
 DEV=CPU BEAM=0 python -m examples.puffer.smoke "$puffer_smoke/libsquared.dylib"
 ```
+
+Train for 204,800 transitions across four environments:
+
+```sh
+DEV=CPU BEAM=0 python -m examples.puffer.train "$puffer_smoke/libsquared.dylib" \
+  --output runs/puffer-squared-ppo
+```
+
+The run saves `ppo.safetensors` and records goals over 100 sampled episodes
+before training and after checkpoint reload.
