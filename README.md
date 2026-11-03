@@ -9,7 +9,7 @@ Use Python 3.11 and clang. The library install does not include Gymnasium.
 ```sh
 python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install tinybaselines==0.1.0a4
+python -m pip install tinybaselines==0.1.0a5
 ```
 
 Install Gymnasium and Box2D to run this example:
@@ -66,6 +66,10 @@ Each `learn` call starts fresh episodes and a new transition counter.
 `GaussianActorCritic.save(path)` exports a Gaussian policy for inference.
 
 ## Repository examples
+
+Example READMEs and screenshots: [LunarLander](examples/lunar_lander/README.md),
+[CartPole](examples/cartpole/README.md), [Pendulum](examples/pendulum/README.md),
+and [Squared Continuous](examples/puffer/README.md).
 
 From a checkout, run the full LunarLander trainer:
 
