@@ -5,10 +5,21 @@ import numpy as np
 import torch
 
 from examples.lunar_lander import train as lander, reference as reference_lander
-from tinybaselines.policies import normal_log_prob
+from tinybaselines.policies import MLP, normal_log_prob
 
 
 class ParityTest(unittest.TestCase):
+    def test_cpu_mlp_padding_preserves_outputs_and_gradients(self):
+        model = MLP(8, 2, 16, 1)
+        states = lander.Tensor(np.random.default_rng(0).standard_normal((10_000, 8), dtype=np.float32), device='CPU')
+        params = lander.nn.state.get_parameters(model)
+        with lander.Context(TRAINING=1):
+            actual = model(states)
+            expected = model.layers[-1](model.layers[0](states).relu())
+            np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-6)
+            for a, b in zip(actual.square().mean().gradient(*params), expected.square().mean().gradient(*params)):
+                np.testing.assert_allclose(a.numpy(), b.numpy(), rtol=1e-5, atol=1e-6)
+
     def test_rejects_nonfinite_policy_std(self):
         model = lander.ActorCritic(8, 2, 8, 1, 1)
         model.log_std.assign(lander.Tensor([float('nan'), 0])).realize()

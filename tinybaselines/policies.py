@@ -19,9 +19,15 @@ class MLP:
         self.layers.append(nn.Linear(hidden_dim, output_dim))
 
     def __call__(self, x):
+        rows = x.shape[0] if x.device == 'CPU' and x.ndim == 2 and x.shape[0] >= 8192 else 0
+        padding = -rows % 256
+        if padding:
+            # Align large CPU dense kernels, then discard the padded rows.
+            x = x.pad(((0, padding), (0, 0))).contiguous()
         for layer in self.layers[:-1]:
             x = layer(x).relu()
-        return self.layers[-1](x)
+        x = self.layers[-1](x)
+        return x[:rows] if padding else x
 
 
 class GaussianActorCritic:
