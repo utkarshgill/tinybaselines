@@ -9,7 +9,7 @@ Use Python 3.11 and clang. The library install does not include Gymnasium.
 ```sh
 python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install tinybaselines==0.1.0a3
+python -m pip install tinybaselines==0.1.0a4
 ```
 
 Install Gymnasium and Box2D to run this example:
