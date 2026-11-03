@@ -18,3 +18,15 @@ clang -O2 -I"$puffer_smoke/pufferlib" -I"$puffer_smoke/pufferlib/src" \
   -o "$puffer_smoke/squared_smoke"
 "$puffer_smoke/squared_smoke"
 ```
+
+With tinybaselines installed, build the Python adapter's shared library and run
+its reset checks and one PPO update:
+
+```sh
+clang -O2 -dynamiclib -I"$puffer_smoke/pufferlib" -I"$puffer_smoke/pufferlib/src" \
+  -I"$puffer_smoke/raylib-5.5_macos/include" examples/puffer/squared_bridge.c \
+  "$puffer_smoke/raylib-5.5_macos/lib/libraylib.a" \
+  -framework Cocoa -framework IOKit -framework CoreVideo -framework OpenGL \
+  -o "$puffer_smoke/libsquared.dylib"
+DEV=CPU BEAM=0 python -m examples.puffer.smoke "$puffer_smoke/libsquared.dylib"
+```
