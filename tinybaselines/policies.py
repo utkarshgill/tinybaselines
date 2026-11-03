@@ -1,10 +1,12 @@
 import json
+from os import getenv
 
 import numpy as np
 from tinygrad import Tensor, TinyJit, nn
 
 LOG_2PI = float(np.log(2.0 * np.pi))
 NORMAL_ENTROPY_CONSTANT = float(0.5 * np.log(2.0 * np.pi * np.e))
+_CPU_PADDING = getenv('TINYBASELINES_CPU_PADDING') == '1'
 
 
 def normal_log_prob(action_mean, log_std, actions):
@@ -19,7 +21,7 @@ class MLP:
         self.layers.append(nn.Linear(hidden_dim, output_dim))
 
     def __call__(self, x):
-        rows = x.shape[0] if x.device == 'CPU' and x.ndim == 2 and x.shape[0] >= 8192 else 0
+        rows = x.shape[0] if _CPU_PADDING and x.device == 'CPU' and x.ndim == 2 and x.shape[0] >= 8192 else 0
         padding = -rows % 256
         if padding:
             # Align large CPU dense kernels, then discard the padded rows.

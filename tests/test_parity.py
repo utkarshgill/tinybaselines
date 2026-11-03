@@ -14,8 +14,10 @@ class ParityTest(unittest.TestCase):
         states = lander.Tensor(np.random.default_rng(0).standard_normal((10_000, 8), dtype=np.float32), device='CPU')
         params = lander.nn.state.get_parameters(model)
         with lander.Context(TRAINING=1):
-            actual = model(states)
-            expected = model.layers[-1](model.layers[0](states).relu())
+            with patch('tinybaselines.policies._CPU_PADDING', False):
+                expected = model(states)
+            with patch('tinybaselines.policies._CPU_PADDING', True):
+                actual = model(states)
             np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-6)
             for a, b in zip(actual.square().mean().gradient(*params), expected.square().mean().gradient(*params)):
                 np.testing.assert_allclose(a.numpy(), b.numpy(), rtol=1e-5, atol=1e-6)

@@ -74,6 +74,12 @@ pip install -e . -r examples/lunar_lander/requirements.txt
 python -m examples.lunar_lander.train
 ```
 
+CPU batch padding is off by default. Set `TINYBASELINES_CPU_PADDING=1` before
+starting Python to try it. In three runs per variant at 420,000 transitions,
+mean training time was 296.5 s without padding and 282.1 s with it. Sampled
+evaluation cleared 200 in two unpadded runs and no padded runs.
+[Settings and both evaluation modes](examples/lunar_lander/results/cpu-padding.jsonl).
+
 CartPole uses `CategoricalActorCritic`. The example trains, saves a checkpoint,
 and evaluates the reloaded policy over 10 episodes.
 
