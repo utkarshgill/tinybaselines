@@ -1,6 +1,6 @@
 # tinybaselines
 
-PPO in tinygrad. Continuous actions clipped to `[-1, 1]`.
+PPO in tinygrad for discrete and continuous actions. Continuous actions are clipped to `[-1, 1]`.
 
 ## LunarLander from PyPI
 
@@ -9,7 +9,7 @@ Use Python 3.11 and clang. The library install does not include Gymnasium.
 ```sh
 python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install tinybaselines==0.1.0a2
+python -m pip install tinybaselines==0.1.0a3
 ```
 
 Install Gymnasium and Box2D to run this example:
@@ -60,10 +60,10 @@ actions by default; `deterministic=True` uses clipped policy means.
 The collector uses Gymnasium vector environments with same-step autoreset.
 For time-limit bootstrapping, the collector reads pre-reset observations from `infos['final_obs']`.
 
-PPO checkpoints contain the policy, observation scale, Adam state, and PPO settings.
+PPO checkpoints contain the policy, Adam state, and PPO settings.
 Continue training by passing the loaded PPO to `learn` with a new transition budget.
 Each `learn` call starts fresh episodes and a new transition counter.
-`policy.save(path)` exports a policy for inference.
+`GaussianActorCritic.save(path)` exports a Gaussian policy for inference.
 
 ## Repository examples
 
