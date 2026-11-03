@@ -96,3 +96,43 @@ class GaussianActorCritic:
         self.action_std = np.exp(self.log_std.clip(-5, 2).numpy())
         if not np.isfinite(self.action_std).all():
             raise FloatingPointError('non-finite policy standard deviation')
+
+
+class CategoricalActorCritic:
+    """Actor-critic for a single discrete action per observation."""
+
+    def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
+        self.actor = MLP(state_dim, action_dim, hidden_dim, actor_layers)
+        self.critic = MLP(state_dim, 1, hidden_dim, critic_layers)
+        self.actor_jit = TinyJit(lambda states: self.actor(states).realize())
+        self.jit_shape = None
+
+    @property
+    def actor_parameters(self):
+        return nn.state.get_parameters(self.actor)
+
+    @property
+    def device(self):
+        return self.actor.layers[0].weight.device
+
+    def preprocess(self, observations):
+        return Tensor(observations.astype(np.float32), device=self.device)
+
+    def evaluate_actions(self, states, actions):
+        log_probs = self.actor(states).log_softmax(axis=-1)
+        selected = log_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+        entropy = -(log_probs.exp() * log_probs).sum(axis=-1).mean()
+        return self.critic(states), selected, entropy
+
+    def act(self, state, deterministic=False):
+        states = self.preprocess(state)
+        if self.jit_shape != states.shape:
+            self.refresh_inference()
+            self.jit_shape = states.shape
+        logits = self.actor_jit(states).numpy()
+        scores = logits if deterministic else logits + np.random.gumbel(size=logits.shape)
+        actions = scores.argmax(axis=-1).astype(np.int32)
+        return actions, actions
+
+    def refresh_inference(self):
+        self.actor_jit.reset()
