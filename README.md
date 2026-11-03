@@ -74,6 +74,14 @@ pip install -e . -r examples/lunar_lander/requirements.txt
 python -m examples.lunar_lander.train
 ```
 
+CartPole uses `CategoricalActorCritic`. The example trains, saves a checkpoint,
+and evaluates the reloaded policy over 10 episodes.
+
+```sh
+pip install -e . 'gymnasium==1.4.0'
+DEV=CPU BEAM=0 python -m examples.cartpole.train --checkpoint cartpole.safetensors
+```
+
 Pendulum uses three observations and one action. Its example rescales policy actions
 from `[-1, 1]` to torque in `[-2, 2]`.
 
