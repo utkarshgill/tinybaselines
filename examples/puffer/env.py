@@ -61,14 +61,18 @@ class SquaredVectorEnv:
         self._envs.clear()
 
 
-class RelativeSquaredVectorEnv(SquaredVectorEnv):
-    @staticmethod
-    def _observe(board):
+class CoordinateSquaredVectorEnv(SquaredVectorEnv):
+    def __init__(self, library, num_envs=4, *, relative):
+        super().__init__(library, num_envs)
+        self.relative = relative
+
+    def _observe(self, board):
         def position(tile):
             return np.column_stack(np.divmod((board == tile).argmax(axis=1), 11))
 
         agent, target = position(1), position(2)
-        return np.concatenate((agent - 5, target - agent), axis=1).astype(np.float32) / 5
+        target_features = target - agent if self.relative else target - 5
+        return np.concatenate((agent - 5, target_features), axis=1).astype(np.float32) / 5
 
     def reset(self):
         board, info = super().reset()
