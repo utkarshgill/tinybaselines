@@ -38,7 +38,8 @@ class GaussianActorCritic:
         scale = np.ones(state_dim, np.float32) if observation_scale is None else np.asarray(observation_scale, np.float32)
         self.observation_scale = Tensor(scale.copy()).is_param_(False).realize()
         self.jit_shape = None
-        self.actor_jit = TinyJit(lambda state: self.actor(state).realize())
+        self._cpu_input = None
+        self.actor_jit = TinyJit(lambda state, scale=None: self.actor(state if scale is None else state * scale).realize())
         self.refresh_inference()
 
     @property
@@ -66,11 +67,25 @@ class GaussianActorCritic:
         return Tensor(observations.astype(np.float32), device=self.observation_scale.device) * self.observation_scale
 
     def act(self, state, deterministic=False):
-        state_tensor = self.preprocess(state)
-        if self.jit_shape != state_tensor.shape:
+        preprocess = self.preprocess
+        buffered = self.device == 'CPU' and getattr(preprocess, '__func__', None) is GaussianActorCritic.preprocess
+        if not buffered:
+            state_tensor = preprocess(state)
+        signature = (state.shape if buffered else state_tensor.shape), buffered
+        if self.jit_shape != signature:
             self.actor_jit.reset()
-            self.jit_shape = state_tensor.shape
-        mean = self.actor_jit(state_tensor).numpy()
+            self.jit_shape = signature
+            self._cpu_input = None
+        if buffered:
+            if self._cpu_input is None:
+                # Keep the NumPy owner alive for the lifetime of the tensor.
+                host = np.empty(state.shape, dtype=np.float32)
+                self._cpu_input = host, Tensor.from_blob(host.ctypes.data, host.shape, device='CPU', dtype='float32')
+            host, state_tensor = self._cpu_input
+            host[:] = state
+            mean = self.actor_jit(state_tensor, self.observation_scale).numpy()
+        else:
+            mean = self.actor_jit(state_tensor).numpy()
         if deterministic:
             action = np.clip(mean, -1, 1)
             return action, mean
