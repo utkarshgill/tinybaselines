@@ -39,6 +39,14 @@ class GaussianActorCritic:
         self.actor_jit = TinyJit(lambda state: self.actor(state).realize())
         self.refresh_inference()
 
+    @property
+    def actor_parameters(self):
+        return nn.state.get_parameters(self.actor) + [self.log_std]
+
+    @property
+    def device(self):
+        return self.log_std.device
+
     def __call__(self, state):
         action_mean = self.actor(state)
         log_std = self.log_std.clip(-5, 2)

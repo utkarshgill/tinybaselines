@@ -12,6 +12,15 @@ from tinybaselines.rollout import RolloutBatch
 
 
 class CoreTest(unittest.TestCase):
+    def test_ppo_gets_actor_parameters_and_device_from_policy(self):
+        model = GaussianActorCritic(3, 1, 4, 1, 1)
+        weight = model.actor.layers[0].weight
+        policy = SimpleNamespace(actor_parameters=[weight], device=weight.device, critic=model.critic)
+        ppo = PPO(policy, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                  eps_clip=0.2, batch_size=4, vf_coef=1.0, entropy_coef=0.0)
+        self.assertEqual(ppo.device, policy.device)
+        self.assertIs(ppo.pi_optimizer.params[0], weight)
+
     def test_rejects_nonpositive_update_settings(self):
         policy = GaussianActorCritic(3, 1, 4, 1, 1)
         settings = dict(pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,

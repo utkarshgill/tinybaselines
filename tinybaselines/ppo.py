@@ -25,8 +25,8 @@ class PPO:
         if batch_size <= 0:
             raise ValueError('batch_size must be positive')
         self.actor_critic = actor_critic
-        self.device = actor_critic.log_std.device
-        self.actor_parameters = nn.state.get_parameters(actor_critic.actor) + [actor_critic.log_std]
+        self.device = actor_critic.device
+        self.actor_parameters = actor_critic.actor_parameters
         self.critic_parameters = nn.state.get_parameters(actor_critic.critic)
         self.pi_optimizer = nn.optim.Adam(self.actor_parameters, lr=pi_lr)
         self.vf_optimizer = nn.optim.Adam(self.critic_parameters, lr=vf_lr)
