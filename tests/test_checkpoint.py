@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -82,6 +83,17 @@ class CheckpointTest(unittest.TestCase):
             second = PPO.load(path)
             np.testing.assert_array_equal(first.actor_critic.log_std.numpy(), before)
             np.testing.assert_array_equal(second.actor_critic.log_std.numpy(), [0.25])
+
+    def test_loads_gaussian_checkpoint_without_policy_type(self):
+        ppo = self.make_ppo()
+        metadata = dict(format='tinybaselines.ppo.v1', policy_config=json.dumps(ppo.actor_critic.config),
+                        ppo_config=json.dumps(ppo.config))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'legacy.safetensors'
+            lander.nn.state.safe_save(ppo.state_dict(), path, metadata=metadata)
+            restored = PPO.load(path)
+        self.assertIsInstance(restored.actor_critic, GaussianActorCritic)
+        np.testing.assert_array_equal(restored.actor_critic.observation_scale.numpy(), [2, 3, 4])
 
     def test_failed_save_preserves_previous_checkpoint(self):
         ppo = self.make_ppo()

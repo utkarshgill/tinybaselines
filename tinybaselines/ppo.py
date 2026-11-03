@@ -5,7 +5,10 @@ from tempfile import TemporaryDirectory
 import numpy as np
 from tinygrad import Context, Tensor, TinyJit, nn
 
-from .policies import GaussianActorCritic
+from .policies import CategoricalActorCritic, GaussianActorCritic
+
+_CHECKPOINT_POLICIES = {policy._checkpoint_type: policy for policy in (GaussianActorCritic, CategoricalActorCritic)}
+
 
 def clip_grad_norm(parameters, max_norm):
     gradients = [parameter.grad for parameter in parameters if parameter.grad is not None]
@@ -52,6 +55,7 @@ class PPO:
     def save(self, path):
         path = Path(path)
         metadata = dict(format='tinybaselines.ppo.v1', policy_config=json.dumps(self.actor_critic.config),
+                        policy_type=self.actor_critic._checkpoint_type,
                         ppo_config=json.dumps(self.config))
         with TemporaryDirectory(dir=path.parent) as directory:
             temporary = Path(directory) / path.name
@@ -64,7 +68,11 @@ class PPO:
         metadata = header.get('__metadata__', {})
         if metadata.get('format') != 'tinybaselines.ppo.v1':
             raise ValueError('unsupported PPO checkpoint format')
-        policy = GaussianActorCritic(**json.loads(metadata['policy_config']))
+        policy_type = metadata.get('policy_type', 'gaussian')
+        policy_class = _CHECKPOINT_POLICIES.get(policy_type)
+        if policy_class is None:
+            raise ValueError(f'unsupported PPO checkpoint policy type: {policy_type!r}')
+        policy = policy_class(**json.loads(metadata['policy_config']))
         ppo = cls(policy, **json.loads(metadata['ppo_config']))
         nn.state.load_state_dict(ppo.state_dict(), nn.state.safe_load(path), verbose=False)
         policy.refresh_inference()

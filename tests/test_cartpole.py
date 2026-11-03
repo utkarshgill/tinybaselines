@@ -1,4 +1,6 @@
 from contextlib import closing
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 import gymnasium as gym
@@ -20,5 +22,18 @@ class CartPoleTest(unittest.TestCase):
             self.assertTrue(env.action_space.contains(actions))
             steps = list(learn(env, ppo, total_timesteps=384, rollout_steps=128))
             self.assertEqual(steps[-1].timesteps, 384)
-            self.assertEqual(len(evaluate(env, policy, num_episodes=8)), 8)
-        self.assertFalse(np.array_equal(weight.numpy(), before))
+            self.assertFalse(np.array_equal(weight.numpy(), before))
+            observations, _ = env.reset()
+            with TemporaryDirectory() as directory:
+                path = Path(directory) / 'ppo.safetensors'
+                ppo.save(path)
+                restored = PPO.load(path)
+                self.assertIsInstance(restored.actor_critic, CategoricalActorCritic)
+                np.testing.assert_array_equal(restored.actor_critic.act(observations, deterministic=True)[0],
+                                              policy.act(observations, deterministic=True)[0])
+                state = restored.state_dict()
+                self.assertEqual(state.keys(), ppo.state_dict().keys())
+                for name, tensor in ppo.state_dict().items():
+                    np.testing.assert_array_equal(state[name].numpy(), tensor.numpy())
+                self.assertEqual(len(evaluate(env, restored.actor_critic, num_episodes=8)), 8)
+                self.assertEqual(next(learn(env, restored, total_timesteps=128, rollout_steps=128)).timesteps, 128)

@@ -25,6 +25,8 @@ class MLP:
 
 
 class GaussianActorCritic:
+    _checkpoint_type = 'gaussian'
+
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers, observation_scale=None):
         self.config = dict(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim,
                            actor_layers=actor_layers, critic_layers=critic_layers)
@@ -101,7 +103,11 @@ class GaussianActorCritic:
 class CategoricalActorCritic:
     """Actor-critic for a single discrete action per observation."""
 
+    _checkpoint_type = 'categorical'
+
     def __init__(self, state_dim, action_dim, hidden_dim, actor_layers, critic_layers):
+        self.config = dict(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim,
+                           actor_layers=actor_layers, critic_layers=critic_layers)
         self.actor = MLP(state_dim, action_dim, hidden_dim, actor_layers)
         self.critic = MLP(state_dim, 1, hidden_dim, critic_layers)
         self.actor_jit = TinyJit(lambda states: self.actor(states).realize())
@@ -136,3 +142,6 @@ class CategoricalActorCritic:
 
     def refresh_inference(self):
         self.actor_jit.reset()
+
+    def state_dict(self):
+        return nn.state.get_state_dict(dict(actor=self.actor, critic=self.critic))
