@@ -29,6 +29,10 @@ def clip_grad_norm(parameters, max_norm):
 
 class PPO:
     def __init__(self, actor_critic, pi_lr, vf_lr, gamma, lamda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef):
+        if K_epochs <= 0:
+            raise ValueError('K_epochs must be positive')
+        if batch_size <= 0:
+            raise ValueError('batch_size must be positive')
         self.actor_critic = actor_critic
         self.device = actor_critic.log_std.device
         self.actor_parameters = nn.state.get_parameters(actor_critic.actor) + [actor_critic.log_std]

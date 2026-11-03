@@ -12,6 +12,15 @@ from tinybaselines.rollout import RolloutBatch
 
 
 class CoreTest(unittest.TestCase):
+    def test_rejects_nonpositive_update_settings(self):
+        policy = GaussianActorCritic(3, 1, 4, 1, 1)
+        settings = dict(pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                        eps_clip=0.2, batch_size=4, vf_coef=1.0, entropy_coef=0.0)
+        for name in ('K_epochs', 'batch_size'):
+            for value in (0, -1):
+                with self.subTest(name=name, value=value), self.assertRaisesRegex(ValueError, f'{name} must be positive'):
+                    PPO(policy, **(settings | {name: value}))
+
     def test_terminals_do_not_require_final_observations(self):
         observations = np.zeros((2, 3), np.float32)
         reset_observations = np.full((2, 3), 100, np.float32)
