@@ -82,6 +82,10 @@ pip install -e . 'gymnasium==1.4.0'
 DEV=CPU BEAM=0 python -m examples.cartpole.train --checkpoint cartpole.safetensors
 ```
 
+Three independent four-environment CPU runs averaged 500.00, 496.67, and 494.37
+after 102,400 transitions each. All cleared 475 over 100 fresh stochastic episodes
+per reloaded checkpoint. [Run records](examples/cartpole/results/cpu.jsonl).
+
 Pendulum uses three observations and one action. Its example rescales policy actions
 from `[-1, 1]` to torque in `[-2, 2]`.
 
