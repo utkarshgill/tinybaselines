@@ -1,5 +1,10 @@
 # PufferLib Squared Continuous
 
+![The cyan agent one diagonal move from the red target](checkpoint.png)
+
+Live board one move before the reloaded PPO policy earned +1. The next step
+reached the target and reset the board.
+
 Native CPU smoke test on macOS. It calls PufferLib's reset and step functions
 directly and opens no window. Run from the tinybaselines checkout:
 
