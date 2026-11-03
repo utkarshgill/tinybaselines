@@ -9,12 +9,13 @@ import subprocess
 from time import perf_counter
 
 from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
-from .env import SquaredVectorEnv
+from .env import RelativeSquaredVectorEnv, SquaredVectorEnv
 
 
-def run(library, output, total_timesteps):
+def run(library, output, total_timesteps, observations='board'):
     output.mkdir(parents=True, exist_ok=False)
-    policy = GaussianActorCritic(121, 2, 64, 2, 2)
+    env_class, state_dim = (RelativeSquaredVectorEnv, 4) if observations == 'relative' else (SquaredVectorEnv, 121)
+    policy = GaussianActorCritic(state_dim, 2, 64, 2, 2)
     ppo = PPO(policy, pi_lr=3e-4, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=4,
               eps_clip=0.2, batch_size=256, vf_coef=0.5, entropy_coef=0.001)
 
@@ -25,7 +26,7 @@ def run(library, output, total_timesteps):
             print(line, flush=True)
 
         def score(event, actor):
-            with closing(SquaredVectorEnv(library, num_envs=4)) as env:
+            with closing(env_class(library, num_envs=4)) as env:
                 returns = list(map(float, evaluate(env, actor, num_episodes=100, deterministic=False)))
             assert len(returns) == 100 and all(value in (-1, 1) for value in returns)
             record(event, goals=returns.count(1), episodes=len(returns), episode_returns=returns)
@@ -35,10 +36,10 @@ def run(library, output, total_timesteps):
                versions={name: version(name) for name in ('tinygrad', 'numpy')},
                library_sha256=sha256(library.read_bytes()).hexdigest(), device=ppo.device,
                num_envs=4, requested_timesteps=total_timesteps, rollout_steps=2048,
-               deterministic=False, policy=policy.config, ppo=ppo.config)
+               deterministic=False, observations=observations, policy=policy.config, ppo=ppo.config)
         score('initial', policy)
         timesteps = 0
-        with closing(SquaredVectorEnv(library, num_envs=4)) as env:
+        with closing(env_class(library, num_envs=4)) as env:
             started = perf_counter()
             for step in learn(env, ppo, total_timesteps=total_timesteps, rollout_steps=2048):
                 timesteps = step.timesteps
@@ -55,5 +56,6 @@ if __name__ == '__main__':
     parser.add_argument('library', type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--timesteps', type=int, default=204_800)
+    parser.add_argument('--observations', choices=('board', 'relative'), default='board')
     args = parser.parse_args()
-    run(args.library, args.output, args.timesteps)
+    run(args.library, args.output, args.timesteps, args.observations)

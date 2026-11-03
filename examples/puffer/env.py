@@ -59,3 +59,21 @@ class SquaredVectorEnv:
         for handle in self._envs:
             self._lib.squared_destroy(handle)
         self._envs.clear()
+
+
+class RelativeSquaredVectorEnv(SquaredVectorEnv):
+    @staticmethod
+    def _observe(board):
+        def position(tile):
+            return np.column_stack(np.divmod((board == tile).argmax(axis=1), 11))
+
+        agent, target = position(1), position(2)
+        return np.concatenate((agent - 5, target - agent), axis=1).astype(np.float32) / 5
+
+    def reset(self):
+        board, info = super().reset()
+        return self._observe(board), info
+
+    def step(self, actions):
+        board, *transition = super().step(actions)
+        return self._observe(board), *transition

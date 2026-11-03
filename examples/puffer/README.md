@@ -40,3 +40,7 @@ DEV=CPU BEAM=0 python -m examples.puffer.train "$puffer_smoke/libsquared.dylib" 
 
 The run saves `ppo.safetensors` and records goals over 100 sampled episodes
 before training and after checkpoint reload.
+
+Add `--observations relative` to use the agent's centered row and column and the
+signed row and column offset to the target, all divided by 5. Use the same
+observation mode when evaluating a saved policy.
