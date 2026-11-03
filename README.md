@@ -2,42 +2,51 @@
 
 PPO in tinygrad. Continuous actions clipped to `[-1, 1]`.
 
-Python 3.11 and clang.
+## LunarLander from PyPI
+
+Use Python 3.11 and clang. The library install does not include Gymnasium.
 
 ```sh
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -e . -r examples/lunar_lander/requirements.txt
+python -m pip install tinybaselines==0.1.0a2
 ```
 
-Train, save, and load.
+Install Gymnasium and Box2D to run this example:
+
+```sh
+python -m pip install 'gymnasium[box2d]==1.4.0'
+```
+
+Save this as `train_lander.py`. It runs one PPO update and evaluates the reloaded checkpoint.
 
 ```python
+from contextlib import closing
 from statistics import mean
-from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
-from examples.lunar_lander.config import OBS_SCALE
-from examples.lunar_lander.train import make_env
 
-env = make_env(4, asynchronous=False)
+import gymnasium as gym
+
+from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
+
 policy = GaussianActorCritic(state_dim=8, action_dim=2, hidden_dim=128,
-                            actor_layers=4, critic_layers=4, observation_scale=OBS_SCALE)
+                             actor_layers=4, critic_layers=4,
+                             observation_scale=[10, 6.666, 5, 7.5, 1, 2.5, 1, 1])
 ppo = PPO(policy, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95,
           K_epochs=20, eps_clip=0.2, batch_size=10_000, vf_coef=1.0, entropy_coef=0.001)
 
-for step in learn(env, ppo, total_timesteps=2_000_000, rollout_steps=20_000):
-    print(step.timesteps, step.rollout_seconds, step.update_seconds)
+with closing(gym.vector.SyncVectorEnv(
+    [lambda: gym.make('LunarLander-v3', continuous=True)] * 4,
+    autoreset_mode=gym.vector.AutoresetMode.SAME_STEP,
+)) as env:
+    for step in learn(env, ppo, total_timesteps=20_000, rollout_steps=20_000):
+        print(step.timesteps, step.rollout_seconds, step.update_seconds)
+    ppo.save('ppo.safetensors')
+    policy = PPO.load('ppo.safetensors').actor_critic
+    print(mean(evaluate(env, policy, num_episodes=10)))
+```
 
-ppo.save('ppo.safetensors')
-ppo = PPO.load('ppo.safetensors')
-policy = ppo.actor_critic
-observations, _ = env.reset()
-actions, raw_actions = policy.act(observations, deterministic=True)
-env.close()
-
-eval_env = make_env(4, asynchronous=False)
-returns = evaluate(eval_env, policy, num_episodes=100)
-eval_env.close()
-print(mean(returns))
+```sh
+DEV=CPU BEAM=0 python train_lander.py
 ```
 
 `total_timesteps` and `rollout_steps` count transitions across all environments.
@@ -56,10 +65,12 @@ Continue training by passing the loaded PPO to `learn` with a new transition bud
 Each `learn` call starts fresh episodes and a new transition counter.
 `policy.save(path)` exports a policy for inference.
 
-The full LunarLander trainer, evaluation, and PyTorch reference live in
-`examples/lunar_lander`.
+## Repository examples
+
+From a checkout, run the full LunarLander trainer:
 
 ```sh
+pip install -e . -r examples/lunar_lander/requirements.txt
 python -m examples.lunar_lander.train
 ```
 
