@@ -112,6 +112,7 @@ class CategoricalActorCritic:
         self.critic = MLP(state_dim, 1, hidden_dim, critic_layers)
         self.actor_jit = TinyJit(lambda states: self.actor(states).realize())
         self.jit_shape = None
+        self._cpu_input = None
 
     @property
     def actor_parameters(self):
@@ -130,12 +131,24 @@ class CategoricalActorCritic:
         entropy = -(log_probs.exp() * log_probs).sum(axis=-1).mean()
         return self.critic(states), selected, entropy
 
-    def act(self, state, deterministic=False):
-        states = self.preprocess(state)
-        if self.jit_shape != states.shape:
+    def _actor_logits(self, state):
+        if self.jit_shape != state.shape:
             self.refresh_inference()
-            self.jit_shape = states.shape
-        logits = self.actor_jit(states).numpy()
+            self.jit_shape = state.shape
+            self._cpu_input = None
+        if self.device == 'CPU':
+            if self._cpu_input is None:
+                # Keep the NumPy owner alive for the lifetime of the tensor.
+                host = np.empty(state.shape, dtype=np.float32)
+                self._cpu_input = host, Tensor.from_blob(host.ctypes.data, host.shape, device='CPU', dtype='float32')
+            host, states = self._cpu_input
+            host[:] = state
+        else:
+            states = self.preprocess(state)
+        return self.actor_jit(states).numpy()
+
+    def act(self, state, deterministic=False):
+        logits = self._actor_logits(state)
         scores = logits if deterministic else logits + np.random.gumbel(size=logits.shape)
         actions = scores.argmax(axis=-1).astype(np.int32)
         return actions, actions

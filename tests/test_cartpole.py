@@ -18,11 +18,20 @@ class CartPoleTest(unittest.TestCase):
         before = weight.numpy().copy()
         with closing(gym.vector.SyncVectorEnv([lambda: gym.make('CartPole-v1')] * 4,
                                               autoreset_mode=gym.vector.AutoresetMode.SAME_STEP)) as env:
-            actions, _ = policy.act(env.reset()[0])
+            observations, _ = env.reset()
+
+            def check_inference():
+                for states in (observations, observations + 1, observations, observations[:1], observations):
+                    expected = policy.actor(policy.preprocess(states)).numpy()
+                    np.testing.assert_allclose(policy._actor_logits(states), expected, rtol=1e-5, atol=1e-6)
+
+            check_inference()
+            actions, _ = policy.act(observations)
             self.assertTrue(env.action_space.contains(actions))
             steps = list(learn(env, ppo, total_timesteps=384, rollout_steps=128))
             self.assertEqual(steps[-1].timesteps, 384)
             self.assertFalse(np.array_equal(weight.numpy(), before))
+            check_inference()
             observations, _ = env.reset()
             with TemporaryDirectory() as directory:
                 path = Path(directory) / 'ppo.safetensors'
