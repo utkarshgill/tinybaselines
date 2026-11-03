@@ -7,15 +7,6 @@ from tinygrad import Context, Tensor, TinyJit, nn
 
 from .policies import GaussianActorCritic
 
-LOG_2PI = float(np.log(2.0 * np.pi))
-NORMAL_ENTROPY_CONSTANT = float(0.5 * np.log(2.0 * np.pi * np.e))
-
-
-def normal_log_prob(action_mean, log_std, actions):
-    normalized = (actions - action_mean) / log_std.exp()
-    return (-0.5 * (normalized.square() + 2.0 * log_std + LOG_2PI)).sum(axis=-1)
-
-
 def clip_grad_norm(parameters, max_norm):
     gradients = [parameter.grad for parameter in parameters if parameter.grad is not None]
     if not gradients:
@@ -93,14 +84,12 @@ class PPO:
         return advantages.reshape(-1), returns.reshape(-1)
 
     def compute_loss(self, batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns):
-        action_means, log_std, state_values = self.actor_critic(batch_states)
-        action_logprobs = normal_log_prob(action_means, log_std, batch_actions)
+        state_values, action_logprobs, entropy = self.actor_critic.evaluate_actions(batch_states, batch_actions)
         ratios = (action_logprobs - batch_logprobs).exp()
         unclipped = ratios * batch_advantages
         clipped = ratios.clip(1 - self.eps_clip, 1 + self.eps_clip) * batch_advantages
         actor_loss = -unclipped.minimum(clipped).mean()
         critic_loss = (state_values.squeeze(-1) - batch_returns).square().mean()
-        entropy = (log_std + NORMAL_ENTROPY_CONSTANT).sum()
         return actor_loss + self.vf_coef * critic_loss - self.entropy_coef * entropy
 
     def train_step(self, batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns):
@@ -127,8 +116,8 @@ class PPO:
         obs_flat = self.actor_critic.preprocess(batch.observations.reshape(T * N, -1))
         raw_act_np = batch.raw_actions.reshape(T * N, -1).astype(np.float32)
         raw_act_flat = Tensor(raw_act_np, device=self.device)
-        old_mean, old_log_std, old_value = self.actor_critic(obs_flat)
-        old_logprobs_np = normal_log_prob(old_mean, old_log_std, raw_act_flat).numpy()
+        old_value, old_logprobs, _ = self.actor_critic.evaluate_actions(obs_flat, raw_act_flat)
+        old_logprobs_np = old_logprobs.numpy()
         old_values_np = old_value.numpy().reshape(T, N)
         next_obs_t = self.actor_critic.preprocess(batch.next_observations.reshape(T * N, -1))
         next_values_np = self.actor_critic.critic(next_obs_t).numpy().reshape(T, N)

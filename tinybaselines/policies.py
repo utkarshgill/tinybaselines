@@ -3,6 +3,14 @@ import json
 import numpy as np
 from tinygrad import Tensor, TinyJit, nn
 
+LOG_2PI = float(np.log(2.0 * np.pi))
+NORMAL_ENTROPY_CONSTANT = float(0.5 * np.log(2.0 * np.pi * np.e))
+
+
+def normal_log_prob(action_mean, log_std, actions):
+    normalized = (actions - action_mean) / log_std.exp()
+    return (-0.5 * (normalized.square() + 2.0 * log_std + LOG_2PI)).sum(axis=-1)
+
 
 class MLP:
     def __init__(self, input_dim, output_dim, hidden_dim, layer_count):
@@ -36,6 +44,13 @@ class GaussianActorCritic:
         log_std = self.log_std.clip(-5, 2)
         value = self.critic(state)
         return action_mean, log_std, value
+
+    def evaluate_actions(self, states, actions):
+        """Return values, action log probabilities, and mean entropy for preprocessed states."""
+        means, log_std, values = self(states)
+        log_probs = normal_log_prob(means, log_std, actions)
+        entropy = (log_std + NORMAL_ENTROPY_CONSTANT).sum()
+        return values, log_probs, entropy
 
     def preprocess(self, observations):
         return Tensor(observations.astype(np.float32), device=self.observation_scale.device) * self.observation_scale

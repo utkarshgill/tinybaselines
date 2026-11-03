@@ -12,7 +12,7 @@ from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
 from .config import ENV_NAME, OBS_SCALE
 from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
-from tinybaselines.ppo import clip_grad_norm, normal_log_prob
+from tinybaselines.ppo import clip_grad_norm
 from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')

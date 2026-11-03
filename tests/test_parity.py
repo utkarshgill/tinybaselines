@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from examples.lunar_lander import train as lander, reference as reference_lander
+from tinybaselines.policies import normal_log_prob
 
 
 class ParityTest(unittest.TestCase):
@@ -205,7 +206,7 @@ class ParityTest(unittest.TestCase):
         torch_mean = torch.tensor(means, requires_grad=True)
         torch_log_std = torch.tensor(log_std, requires_grad=True)
         with lander.Context(TRAINING=1):
-            actual = lander.normal_log_prob(tiny_mean, tiny_log_std, lander.Tensor(actions))
+            actual = normal_log_prob(tiny_mean, tiny_log_std, lander.Tensor(actions))
             actual.sum().backward()
         expected = torch.distributions.Normal(torch_mean, torch_log_std.exp()).log_prob(torch.tensor(actions)).sum(-1)
         expected.sum().backward()
