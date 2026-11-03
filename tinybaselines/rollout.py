@@ -58,7 +58,7 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
         actions, raw_actions = actor_critic.act(states, deterministic=deterministic)
         if collect:
             if t == 0:
-                raw_act = np.empty((T, *raw_actions.shape), dtype=np.float32)
+                raw_act = np.empty((T, *raw_actions.shape), dtype=raw_actions.dtype)
             obs[t], raw_act[t] = states, raw_actions
 
         states, rewards, terminated, truncated, infos = env.step(actions)

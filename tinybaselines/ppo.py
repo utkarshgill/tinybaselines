@@ -114,7 +114,7 @@ class PPO:
     def prepare(self, batch):
         T, N = batch.rewards.shape
         obs_flat = self.actor_critic.preprocess(batch.observations.reshape(T * N, -1))
-        raw_act_np = batch.raw_actions.reshape(T * N, -1).astype(np.float32)
+        raw_act_np = batch.raw_actions.reshape(T * N, *batch.raw_actions.shape[2:])
         raw_act_flat = Tensor(raw_act_np, device=self.device)
         old_value, old_logprobs, _ = self.actor_critic.evaluate_actions(obs_flat, raw_act_flat)
         old_logprobs_np = old_logprobs.numpy()

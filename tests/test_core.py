@@ -6,12 +6,35 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
+from tinygrad import Tensor
 
 from tinybaselines import GaussianActorCritic, PPO, rollout
 from tinybaselines.rollout import RolloutBatch
 
 
 class CoreTest(unittest.TestCase):
+    def test_action_dtype_and_shape_survive_minibatching(self):
+        observations = np.zeros((4, 3), np.float32)
+        done = np.zeros(4, bool)
+        env = SimpleNamespace(num_envs=4, reset=lambda: (observations, {}),
+                              step=lambda actions: (observations, np.ones(4), done, done, {}))
+        policy = GaussianActorCritic(3, 2, 4, 1, 1)
+        ppo = PPO(policy, pi_lr=1e-3, vf_lr=1e-3, gamma=0.99, lamda=0.95, K_epochs=1,
+                  eps_clip=0.2, batch_size=4, vf_coef=1.0, entropy_coef=0.0)
+        values = Tensor.zeros(8, 1, device=policy.device)
+        for actions in (np.arange(4, dtype=np.int32), np.arange(8, dtype=np.float32).reshape(4, 2) / 8):
+            with self.subTest(dtype=actions.dtype, shape=actions.shape):
+                with patch.object(policy, 'act', return_value=(actions, actions)):
+                    batch, _ = rollout(env, policy, num_steps=8)
+                self.assertEqual(batch.raw_actions.dtype, actions.dtype)
+                np.testing.assert_array_equal(batch.raw_actions, np.stack([actions, actions]))
+                with patch.object(policy, 'evaluate_actions', return_value=(values, values.squeeze(-1), None)), \
+                     patch.object(ppo, 'train_step') as step, patch('numpy.random.permutation', return_value=np.arange(8)):
+                    ppo.update(batch)
+                minibatches = np.concatenate([call.args[1].numpy() for call in step.call_args_list])
+                self.assertEqual(minibatches.dtype, actions.dtype)
+                np.testing.assert_array_equal(minibatches, np.concatenate([actions, actions]))
+
     def test_ppo_gets_actor_parameters_and_device_from_policy(self):
         model = GaussianActorCritic(3, 1, 4, 1, 1)
         weight = model.actor.layers[0].weight
