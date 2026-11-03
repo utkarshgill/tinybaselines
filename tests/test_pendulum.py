@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 import unittest
 
+import gymnasium as gym
 import numpy as np
 
 from examples.pendulum.env import make_env
@@ -8,6 +9,14 @@ from tinybaselines import GaussianActorCritic, PPO, learn, rollout
 
 
 class PendulumTest(unittest.TestCase):
+    def test_rejects_default_vector_autoreset(self):
+        env = gym.vector.SyncVectorEnv([lambda: gym.make('Pendulum-v1')] * 4)
+        self.addCleanup(env.close)
+        actions = np.zeros((4, 1), np.float32)
+        policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
+        with self.assertRaisesRegex(ValueError, 'autoreset_mode=SAME_STEP'):
+            rollout(env, policy, num_steps=8)
+
     def test_normalized_actions_cover_torque_range(self):
         env = make_env(4)
         try:

@@ -33,6 +33,10 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
     if num_episodes is not None and num_episodes <= 0:
         raise ValueError('num_episodes must be positive')
 
+    mode = (getattr(env, 'metadata', None) or {}).get('autoreset_mode')
+    if getattr(mode, 'value', mode) not in (None, 'SameStep'):
+        raise ValueError(f'Expected autoreset_mode=SAME_STEP, got {mode!r}')
+
     N = env.num_envs
     if state is None:
         state = RolloutState(env.reset()[0], np.zeros(N))
