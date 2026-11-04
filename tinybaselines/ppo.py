@@ -139,6 +139,7 @@ class PPO:
         return obs_flat, raw_act_flat, old_logprobs, advantages, returns
 
     def update(self, batch):
+        """Return final-policy KL and clip fraction over the full rollout after all epochs."""
         obs_flat, raw_act_flat, old_logprobs, advantages, returns = self.prepare(batch)
         num_samples = obs_flat.shape[0]
 
@@ -154,3 +155,8 @@ class PPO:
                 self.train_step(
                     batch_states, batch_actions, batch_logprobs, batch_advantages, batch_returns
                 )
+
+        _, logprobs, _ = self.actor_critic.evaluate_actions(obs_flat, raw_act_flat)
+        log_ratio = (logprobs - old_logprobs).numpy()
+        return dict(approx_kl=float(np.mean(np.expm1(log_ratio) - log_ratio)),
+                    clip_fraction=float(np.mean(np.abs(np.exp(log_ratio) - 1) > self.eps_clip)))

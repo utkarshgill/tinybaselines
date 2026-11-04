@@ -11,6 +11,8 @@ class TrainingStep(NamedTuple):
     episode_returns: list[float]
     rollout_seconds: float
     update_seconds: float
+    approx_kl: float
+    clip_fraction: float
 
 
 def learn(env, ppo, total_timesteps, rollout_steps):
@@ -27,6 +29,6 @@ def learn(env, ppo, total_timesteps, rollout_steps):
         started = perf_counter()
         batch, returns = rollout(env, ppo.actor_critic, num_steps=rollout_steps, state=state)
         collected = perf_counter()
-        ppo.update(batch)
+        metrics = ppo.update(batch)
         updated = perf_counter()
-        yield TrainingStep(timesteps + batch.rewards.size, returns, collected - started, updated - collected)
+        yield TrainingStep(timesteps + batch.rewards.size, returns, collected - started, updated - collected, **metrics)

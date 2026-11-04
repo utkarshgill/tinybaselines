@@ -12,7 +12,7 @@ class TrainingTest(unittest.TestCase):
         self.observations = np.zeros((2, 3), np.float32)
         actions = np.zeros((2, 1), np.float32)
         policy = SimpleNamespace(act=lambda obs, deterministic: (actions, actions))
-        self.ppo = SimpleNamespace(actor_critic=policy, update=Mock())
+        self.ppo = SimpleNamespace(actor_critic=policy, update=Mock(return_value=dict(approx_kl=0.03, clip_fraction=0.2)))
 
         def step(actions):
             self.observations[:] += 1
@@ -29,6 +29,7 @@ class TrainingTest(unittest.TestCase):
         self.assertEqual([step.timesteps for step in steps], [4, 8, 12])
         self.assertEqual([step.episode_returns for step in steps], [[], [3, 3], [3, 3]])
         self.assertEqual([(step.rollout_seconds, step.update_seconds) for step in steps], [(1, 1)] * 3)
+        self.assertEqual([(step.approx_kl, step.clip_fraction) for step in steps], [(0.03, 0.2)] * 3)
         batches = [call.args[0] for call in self.ppo.update.call_args_list]
         np.testing.assert_array_equal([batch.observations[:, 0, 0] for batch in batches], [[0, 1], [2, 0], [1, 2]])
         self.env.reset.assert_called_once()
@@ -66,7 +67,7 @@ class TrainingTest(unittest.TestCase):
     def test_example_uses_training_progress(self):
         from examples.lunar_lander import train
 
-        step = TrainingStep(8, [3.0, 4.0], 0.1, 0.2)
+        step = TrainingStep(8, [3.0, 4.0], 0.1, 0.2, 0.03, 0.2)
         ctx = SimpleNamespace(training=iter([step]), pbar=Mock(), rollout_times=[], update_times=[],
                               all_episode_returns=[], last_eval_stochastic=-np.inf)
         with patch.object(train, 'PLOT', False):

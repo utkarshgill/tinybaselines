@@ -30,6 +30,9 @@ class CartPoleTest(unittest.TestCase):
             self.assertTrue(env.action_space.contains(actions))
             steps = list(learn(env, ppo, total_timesteps=384, rollout_steps=128))
             self.assertEqual(steps[-1].timesteps, 384)
+            for step in steps:
+                self.assertTrue(np.isfinite(step.approx_kl) and step.approx_kl >= 0)
+                self.assertTrue(0 <= step.clip_fraction <= 1)
             self.assertFalse(np.array_equal(weight.numpy(), before))
             check_inference()
             observations, _ = env.reset()
