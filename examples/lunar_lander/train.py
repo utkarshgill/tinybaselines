@@ -99,6 +99,7 @@ class TrainingContext:
 
 def train_one_epoch(epoch, ctx):
     step = next(ctx.training)
+    ctx.last_step = step
     ep_rets = step.episode_returns
     ctx.rollout_times.append(step.rollout_seconds)
     ctx.update_times.append(step.update_seconds)

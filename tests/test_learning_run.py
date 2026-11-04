@@ -9,26 +9,29 @@ from unittest.mock import Mock, patch
 import torch
 
 from examples.lunar_lander import reference as reference_lander, train, run_learning
+from tinybaselines import TrainingStep
 
 
 class LearningRunTest(unittest.TestCase):
     def test_saves_and_evaluates_ppo_checkpoint(self):
         policy = SimpleNamespace(log_std=train.Tensor.zeros(2), config={}, save=Mock())
         ctx = SimpleNamespace(ac=policy, ppo=SimpleNamespace(save=Mock()), eval_env=object(), cleanup=Mock(),
-                              rollout_times=[0.0], update_times=[0.0], last_eval_stochastic=205.0)
+                              rollout_times=[], update_times=[], all_episode_returns=[], pbar=Mock(),
+                              training=iter([TrainingStep(20_000, [1.0], 0.1, 0.2, 0.03, 0.2)]))
         restored = object()
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'run'
-            with patch.dict(os.environ), patch.multiple(train, max_epochs=1,
-                    TrainingContext=Mock(return_value=ctx), train_one_epoch=Mock(return_value=True),
-                    evaluate_policy=Mock(return_value=210.0)):
+            with patch.dict(os.environ), patch.multiple(train, max_epochs=1, PLOT=False, RENDER=False,
+                    TrainingContext=Mock(return_value=ctx), evaluate_policy=Mock(side_effect=[205.0, 210.0])):
                 with patch.object(train.PPO, 'load', return_value=SimpleNamespace(actor_critic=restored)) as load:
                     run_learning.run('tinygrad', output)
                     policy.save.assert_called_once_with(output / 'policy.safetensors')
                     ctx.ppo.save.assert_called_once_with(output / 'ppo.safetensors')
                     load.assert_called_once_with(output / 'ppo.safetensors')
-                    train.evaluate_policy.assert_called_once_with(restored, env=ctx.eval_env, deterministic=False)
+                    train.evaluate_policy.assert_called_with(restored, env=ctx.eval_env, deterministic=False)
             events = [json.loads(line) for line in (output / 'metrics.jsonl').read_text().splitlines()]
+            epoch, = [entry for entry in events if entry['event'] == 'epoch']
+            self.assertEqual((epoch['approx_kl'], epoch['clip_fraction']), (0.03, 0.2))
             self.assertEqual(events[-1]['checkpoint'], 'ppo.safetensors')
             self.assertEqual(events[-1]['policy'], 'policy.safetensors')
             ctx.cleanup.assert_called_once()
@@ -75,6 +78,7 @@ class LearningRunTest(unittest.TestCase):
             epochs = [entry for entry in events if entry['event'] == 'epoch']
             self.assertEqual([entry['steps'] for entry in epochs], [20_000, 40_000])
             for entry in epochs:
+                self.assertTrue({'approx_kl', 'clip_fraction'}.isdisjoint(entry))
                 self.assertAlmostEqual(entry['seconds_total'],
                                        entry['rollout_seconds'] + entry['update_seconds'] + entry['other_seconds'])
                 self.assertGreaterEqual(entry['other_seconds'], 0)

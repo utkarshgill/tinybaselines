@@ -46,9 +46,11 @@ def run(framework, output):
                 solved = trainer.train_one_epoch(epoch, ctx)
                 epoch_seconds = time.perf_counter() - epoch_started
                 rollout_seconds, update_seconds = ctx.rollout_times[-1], ctx.update_times[-1]
+                diagnostics = dict(approx_kl=ctx.last_step.approx_kl,
+                                   clip_fraction=ctx.last_step.clip_fraction) if framework == 'tinygrad' else {}
                 record(event='epoch', steps=(epoch + 1) * trainer.steps_per_epoch, seconds_total=epoch_seconds,
                        rollout_seconds=rollout_seconds, update_seconds=update_seconds,
-                       other_seconds=epoch_seconds - rollout_seconds - update_seconds)
+                       other_seconds=epoch_seconds - rollout_seconds - update_seconds, **diagnostics)
                 if epoch % trainer.eval_interval == 0:
                     record(event='evaluation', steps=(epoch + 1) * trainer.steps_per_epoch, score=ctx.last_eval_stochastic)
                 if solved:
