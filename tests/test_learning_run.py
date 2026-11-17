@@ -6,13 +6,58 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
+import gymnasium as gym
 import torch
 
 from examples.lunar_lander import reference as reference_lander, train, run_learning
+from examples.lunar_lander.config import SeededReset
 from tinybaselines import TrainingStep
 
 
 class LearningRunTest(unittest.TestCase):
+    def test_seed_applies_to_first_reset_only(self):
+        def reset_seeds(seed, stream):
+            env = Mock(spec=gym.vector.VectorEnv)
+            wrapped = SeededReset(env, seed, stream)
+            wrapped.reset()
+            wrapped.reset()
+            return [call.kwargs['seed'] for call in env.reset.call_args_list]
+
+        seeds = reset_seeds(0, 0)
+        self.assertEqual(seeds, reset_seeds(0, 0))
+        self.assertIsInstance(seeds[0], int)
+        self.assertIsNone(seeds[1])
+        self.assertNotEqual(seeds[0], reset_seeds(0, 1)[0])
+        self.assertNotEqual(seeds[0], reset_seeds(1, 0)[0])
+
+    def test_fixed_budget_continues_after_threshold(self):
+        policy = SimpleNamespace(log_std=train.Tensor.zeros(2), config={}, save=Mock())
+        ctx = SimpleNamespace(ac=policy, ppo=SimpleNamespace(save=Mock()), eval_env=object(), cleanup=Mock(),
+                              rollout_times=[0.0], update_times=[0.0], last_eval_stochastic=205.0,
+                              last_step=TrainingStep(20_000, [], 0.0, 0.0, 0.03, 0.2))
+        context, epoch = Mock(return_value=ctx), Mock(return_value=True)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'run'
+            with patch.dict(os.environ), patch.multiple(train, max_epochs=1, TrainingContext=context,
+                    train_one_epoch=epoch, evaluate_policy=Mock(return_value=210.0)), patch.object(train.PPO, 'load'):
+                run_learning.run('tinygrad', output, seed=0, budget=40_000)
+            events = [json.loads(line) for line in (output / 'metrics.jsonl').read_text().splitlines()]
+        context.assert_called_once_with(seed=0, epochs=2)
+        self.assertEqual([call.args[0] for call in epoch.call_args_list], [0, 1])
+        self.assertEqual((events[0]['seed'], events[0]['budget'], events[0]['settings']['max_epochs']), (0, 40_000, 2))
+        self.assertEqual(events[-1]['steps'], 40_000)
+        self.assertFalse(events[-1]['stopped_on_threshold'])
+
+    def test_rejects_invalid_seed_and_budget(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ):
+            output = Path(directory) / 'run'
+            with self.assertRaisesRegex(ValueError, 'seed'):
+                run_learning.run('tinygrad', output, seed=-1)
+            for budget in (0, 20_001):
+                with self.assertRaisesRegex(ValueError, 'positive multiple'):
+                    run_learning.run('tinygrad', output, budget=budget)
+            self.assertFalse(output.exists())
+
     def test_saves_and_evaluates_ppo_checkpoint(self):
         policy = SimpleNamespace(log_std=train.Tensor.zeros(2), config={}, save=Mock())
         ctx = SimpleNamespace(ac=policy, ppo=SimpleNamespace(save=Mock()), eval_env=object(), cleanup=Mock(),

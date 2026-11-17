@@ -8,7 +8,7 @@ import torch.optim as optim
 import os
 import warnings
 from tqdm import trange
-from .config import ENV_NAME, OBS_SCALE
+from .config import ENV_NAME, OBS_SCALE, SeededReset
 from tinybaselines.rollout import RolloutBatch, RolloutState
 
 warnings.filterwarnings('ignore', message='pkg_resources is deprecated')
@@ -238,16 +238,24 @@ def rollout(env, actor_critic, num_steps=None, num_episodes=None, deterministic=
     return (RolloutBatch(obs, raw_act, rew, terminations, truncations, next_obs), ep_returns) if collect else ep_returns
 
 class TrainingContext:
-    def __init__(self):
+    def __init__(self, *, seed=None, epochs=None):
+        epochs = max_epochs if epochs is None else epochs
+        if seed is not None:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
         self.ac = ActorCritic(state_dim, action_dim, hidden_dim, actor_layers, critic_layers).to(device)
         self.ppo = PPO(self.ac, pi_lr, vf_lr, gamma, gae_lambda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef)
         
         self.env = make_env(num_envs)
+        if seed is not None:
+            self.env = SeededReset(self.env, seed, stream=0)
         self.rollout_state = RolloutState(self.env.reset()[0], np.zeros(num_envs))
         self.eval_env = make_env(min(num_envs, eval_episodes), asynchronous=False)
+        if seed is not None:
+            self.eval_env = SeededReset(self.eval_env, seed, stream=1)
         self.all_episode_returns = []
         self.last_eval_stochastic = float('-inf')
-        self.pbar = trange(max_epochs, desc="Training", unit='epoch')
+        self.pbar = trange(epochs, desc="Training", unit='epoch')
         self.rollout_times = []
         self.update_times = []
         

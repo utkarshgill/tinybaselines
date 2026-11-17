@@ -10,7 +10,7 @@ if not METAL:
 
 from tinygrad import Tensor, TinyJit, nn, Context
 from tqdm import trange
-from .config import ENV_NAME, OBS_SCALE
+from .config import ENV_NAME, OBS_SCALE, SeededReset
 from tinybaselines import GaussianActorCritic, PPO, evaluate, learn
 from tinybaselines.ppo import clip_grad_norm
 from tinybaselines.rollout import RolloutBatch, RolloutState, rollout, track_episode_returns
@@ -69,16 +69,23 @@ class ActorCritic(GaussianActorCritic):
 
 
 class TrainingContext:
-    def __init__(self):
+    def __init__(self, *, seed=None, epochs=None):
+        epochs = max_epochs if epochs is None else epochs
+        if seed is not None:
+            np.random.seed(seed)
+            Tensor.manual_seed(seed)
         self.ac = ActorCritic(state_dim, action_dim, hidden_dim, actor_layers, critic_layers)
         self.ppo = PPO(self.ac, pi_lr, vf_lr, gamma, gae_lambda, K_epochs, eps_clip, batch_size, vf_coef, entropy_coef)
 
         self.env = make_env(num_envs)
-        self.training = learn(self.env, self.ppo, total_timesteps=max_epochs * steps_per_epoch, rollout_steps=steps_per_epoch)
         self.eval_env = make_env(min(num_envs, eval_episodes), asynchronous=False)
+        if seed is not None:
+            self.env = SeededReset(self.env, seed, stream=0)
+            self.eval_env = SeededReset(self.eval_env, seed, stream=1)
+        self.training = learn(self.env, self.ppo, total_timesteps=epochs * steps_per_epoch, rollout_steps=steps_per_epoch)
         self.all_episode_returns = []
         self.last_eval_stochastic = float('-inf')
-        self.pbar = trange(max_epochs, desc='Training', unit='epoch')
+        self.pbar = trange(epochs, desc='Training', unit='epoch')
         self.rollout_times = []
         self.update_times = []
 
